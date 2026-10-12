@@ -1,0 +1,24 @@
+{
+  "name": "metalmundi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MetalMundi - full-stack waste material marketplace (MERN)",
+  "type": "commonjs",
+  "scripts": {
+    "install:all": "npm install --no-audit --no-fund && npm --prefix server install --no-audit --no-fund && npm --prefix client install --no-audit --no-fund",
+    "dev": "concurrently -n api,web -c green,cyan \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test",
+    "test:server": "npm --prefix server test",
+    "test:client": "npm --prefix client test",
+    "lint": "npm --prefix server run lint",
+    "seed:admin": "node scripts/create-admin.js",
+    "seed:demo": "node scripts/seed-demo.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

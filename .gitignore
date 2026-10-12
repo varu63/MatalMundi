@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+npm-debug.log*
+.env
+.env.local
+.env.*.local
+.env.example
+coverage/
+server/uploads/
+client/.env
+client/.env.local
+.nyc_output/
+.mongodb-binaries/
+*.tsbuildinfo
