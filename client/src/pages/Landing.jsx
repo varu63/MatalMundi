@@ -17,7 +17,7 @@ export default function Landing() {
   return (
     <div>
       <section className="relative overflow-hidden bg-ink-900 py-20 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(34,197,94,0.25),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(34,197,94,0.25),transparent_60%)] " />
         <div className="relative mx-auto max-w-7xl px-4 text-center sm:px-6">
           <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl">
             Turn scrap into <span className="text-brand-400">value</span>. Buy and sell waste materials
