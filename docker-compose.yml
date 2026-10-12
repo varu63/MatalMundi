@@ -1,0 +1,32 @@
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: metalmundi_postgres
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: 
+      POSTGRES_USER: 
+      POSTGRES_PASSWORD: 
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - ":5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - metalmundi_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U  -d "]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+volumes:
+  pgdata:
+    name: metalmundi_pgdata
+networks:
+  metalmundi_net:
+    driver: bridge
