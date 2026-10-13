@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Recycle, TrendingDown, ShieldCheck, Truck, ArrowRight } from 'lucide-react';
 import { endpoints } from '../lib/api';
 import { paise, kg, firstImage } from '../lib/format';
+import heroImg from '../assets/hero.webp';
 
 export default function Landing() {
   const [featured, setFeatured] = useState([]);
@@ -16,8 +17,18 @@ export default function Landing() {
 
   return (
     <div>
-      <section className="relative overflow-hidden bg-ink-900 py-20 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(34,197,94,0.25),transparent_60%)] " />
+      <section
+        className="relative overflow-hidden bg-ink-900 bg-cover py-20 text-white"
+        style={{ backgroundImage: `url(${heroImg})`, backgroundPosition: 'center right' }}
+      >
+        <div className="absolute inset-0 bg-[rgba(8,30,60,0.65)] md:hidden" />
+        <div
+          className="absolute inset-0 hidden md:block"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, rgba(8,30,60,0.85) 0%, rgba(8,30,60,0.55) 50%, rgba(8,30,60,0.15) 100%)',
+          }}
+        />
         <div className="relative mx-auto max-w-7xl px-4 text-center sm:px-6">
           <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl">
             Turn scrap into <span className="text-brand-400">value</span>. Buy and sell waste materials

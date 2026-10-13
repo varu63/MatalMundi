@@ -4,3 +4,4 @@ db-data/
 node_modules
 server/uploads/*
 !server/uploads/.gitkeep
+vibe_images/
