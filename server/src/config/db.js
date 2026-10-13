@@ -1,33 +1,31 @@
 'use strict';
 
-const mongoose = require('mongoose');
+const { PrismaClient } = require('@prisma/client');
 const env = require('./env');
 const logger = require('../utils/logger');
 
-mongoose.set('strictQuery', true);
+// Single shared Prisma client for the whole process. `datasourceUrl` is taken
+// from the loaded env (not the schema's env lookup) so tests can point the
+// whole app at a separate database before it is required for the first time.
+const prisma = new PrismaClient({ datasourceUrl: env.databaseUrl });
 
-async function connectDB(uri = env.mongoUri) {
-  if (mongoose.connection.readyState === 1) return mongoose.connection;
-
-  mongoose.connection.on('connected', () => logger.info('MongoDB connected'));
-  mongoose.connection.on('error', (err) => logger.error(`MongoDB error: ${err.message}`));
-  mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'));
-
-  await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10000,
-    autoIndex: !env.isProd,
-  });
-  return mongoose.connection;
+async function connectDB() {
+  await prisma.$connect();
+  logger.info('PostgreSQL connected');
 }
 
 async function disconnectDB() {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
+  await prisma.$disconnect();
+}
+
+/** Real connectivity probe used by the readiness endpoint. */
+async function ping() {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
   }
 }
 
-function isConnected() {
-  return mongoose.connection.readyState === 1;
-}
-
-module.exports = { connectDB, disconnectDB, isConnected };
+module.exports = { prisma, connectDB, disconnectDB, ping };

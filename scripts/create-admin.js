@@ -13,15 +13,17 @@
  */
 
 const path = require('path');
-const dotenv = require('dotenv');
+const { createRequire } = require('module');
+// Dependencies live in server/node_modules, not in the repo root.
+const serverRequire = createRequire(path.resolve(__dirname, '../server/package.json'));
+const dotenv = serverRequire('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../server/.env') });
 
-const mongoose = require('mongoose');
-const { User, MaterialCategory, PricingConfiguration } = require('../server/src/models');
+const env = require('../server/src/config/env');
+const { prisma } = require('../server/src/config/db');
+const { users, categories, pricing } = require('../server/src/repositories');
+const { hashPassword } = require('../server/src/utils/password');
 const { ROLES, DEFAULT_QUALITY_MULTIPLIERS } = require('../server/src/utils/constants');
-
-const MONGODB_URI =
-  process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/metalmundi';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Ferrous Scrap', icon: 'wrench', rates: { default: 18 }, example: 'MS scrap, cast iron' },
@@ -44,24 +46,24 @@ async function seedAdmin() {
   const email = (process.env.ADMIN_EMAIL || 'admin@metalmundi.test').toLowerCase();
   const password = process.env.ADMIN_PASSWORD || 'ChangeMe123!';
 
-  let admin = await User.findOne({ email });
+  let admin = await users.findByEmail(email);
   if (admin) {
-    admin.role = ROLES.ADMIN;
-    admin.accountStatus = 'ACTIVE';
-    await admin.setPassword(password);
-    await admin.save();
+    await users.updateById(admin.id, {
+      role: ROLES.ADMIN,
+      accountStatus: 'ACTIVE',
+      passwordHash: await hashPassword(password),
+    });
     console.log(`✔ Updated existing admin: ${email}`);
   } else {
-    admin = new User({
+    admin = await users.create({
       name,
       email,
       phone: '0000000000',
+      password,
       role: ROLES.ADMIN,
       accountStatus: 'ACTIVE',
-      emailVerification: { verified: true },
+      emailVerificationVerified: true,
     });
-    await admin.setPassword(password);
-    await admin.save();
     console.log(`✔ Created admin: ${email}`);
   }
   return admin;
@@ -72,11 +74,12 @@ async function seedCategoriesAndPricing() {
   let createdPricing = 0;
 
   for (const def of DEFAULT_CATEGORIES) {
-    let category = await MaterialCategory.findOne({ name: def.name });
+    const slug = def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    let category = await categories.findByNameOrSlug(def.name, slug);
     if (!category) {
-      category = await MaterialCategory.create({
+      category = await categories.create({
         name: def.name,
-        slug: def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        slug,
         description: `Recyclable ${def.name.toLowerCase()}: ${def.example}`,
         icon: def.icon,
         active: true,
@@ -89,14 +92,12 @@ async function seedCategoriesAndPricing() {
     for (const typeName of keys) {
       const ratePerKg = typeName ? def.rates[typeName] : def.rates.default;
       if (ratePerKg === undefined) continue;
-      const activeExists = await PricingConfiguration.findOne({
-        materialCategory: category._id,
-        materialType: typeName || '',
-        active: true,
+      const activeExists = await prisma.pricingConfiguration.findFirst({
+        where: { materialCategoryId: category.id, materialType: typeName || '', active: true },
       });
       if (activeExists) continue;
-      await PricingConfiguration.create({
-        materialCategory: category._id,
+      await pricing.create({
+        materialCategoryId: category.id,
         materialType: typeName || '',
         ratePerKgPaise: Math.round(ratePerKg * 100),
         qualityMultipliers: { ...DEFAULT_QUALITY_MULTIPLIERS },
@@ -115,14 +116,14 @@ async function seedCategoriesAndPricing() {
 }
 
 async function main() {
-  console.log('Connecting to MongoDB…', MONGODB_URI.replace(/:([^@/]+)@/, ':***@'));
-  await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  console.log('Connecting to PostgreSQL…', env.databaseUrl.replace(/:([^@/]+)@/, ':***@'));
+  await prisma.$connect();
 
   await seedAdmin();
   await seedCategoriesAndPricing();
 
   console.log('✔ Setup complete. Log in at http://localhost:5173/login');
-  await mongoose.disconnect();
+  await prisma.$disconnect();
   process.exit(0);
 }
 

@@ -12,22 +12,21 @@ function notFound(req, _res, next) {
 function errorHandler(err, req, res, _next) {
   let error = err;
 
-  // Mongoose bad ObjectId
-  if (error.name === 'CastError') {
-    error = ApiError.badRequest(`Invalid ${error.path}: ${error.value}`);
+  // Prisma known request errors → client-safe HTTP errors.
+  if (err.name === 'PrismaClientKnownRequestError') {
+    if (err.code === 'P2002') {
+      const target = err.meta && err.meta.target;
+      const field = Array.isArray(target) ? target[0] : target;
+      error = ApiError.conflict(`Duplicate value for ${field || 'field'}`);
+    } else if (err.code === 'P2025') {
+      error = ApiError.notFound('Record not found');
+    } else if (err.code === 'P2003') {
+      error = ApiError.badRequest('Related record does not exist');
+    }
   }
-  // Mongoose duplicate key
-  if (error.code === 11000) {
-    const field = Object.keys(error.keyPattern || error.keyValue || { field: '' })[0];
-    error = ApiError.conflict(`Duplicate value for ${field || 'field'}`);
-  }
-  // Mongoose validation
-  if (error.name === 'ValidationError') {
-    const details = Object.values(error.errors).map((e) => ({
-      path: e.path,
-      message: e.message,
-    }));
-    error = ApiError.unprocessable('Validation failed', details);
+  // Malformed ids / wrong value types reaching the database layer.
+  if (err.name === 'PrismaClientValidationError') {
+    error = ApiError.badRequest('Invalid request data');
   }
   // Multer file errors
   if (error.name === 'MulterError') {

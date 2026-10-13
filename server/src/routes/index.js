@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { isConnected } = require('../config/db');
+const { ping } = require('../config/db');
 
 const authRoutes = require('./auth.routes');
 const userRoutes = require('./user.routes');
@@ -10,17 +10,21 @@ const marketplaceRoutes = require('./marketplace.routes');
 const orderRoutes = require('./order.routes');
 const notificationRoutes = require('./notification.routes');
 const categoryRoutes = require('./category.routes');
+const auctionRoutes = require('./auction.routes');
 const adminRoutes = require('./admin.routes');
 
 const router = Router();
 
-router.get('/health', (_req, res) => {
-  const db = isConnected() ? 'connected' : 'disconnected';
-  const status = isConnected() ? 200 : 503;
-  res.status(status).json({
-    success: isConnected(),
-    message: isConnected() ? 'OK' : 'Database not ready',
-    data: { status: 'ok', db, time: new Date().toISOString() },
+router.get('/health', async (_req, res) => {
+  const dbUp = await ping();
+  res.status(dbUp ? 200 : 503).json({
+    success: dbUp,
+    message: dbUp ? 'OK' : 'Database not ready',
+    data: {
+      status: dbUp ? 'ok' : 'degraded',
+      db: dbUp ? 'connected' : 'disconnected',
+      time: new Date().toISOString(),
+    },
   });
 });
 
@@ -31,6 +35,7 @@ router.use('/marketplace', marketplaceRoutes);
 router.use('/orders', orderRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/auctions', auctionRoutes);
 router.use('/admin', adminRoutes);
 
 module.exports = router;

@@ -1,9 +1,13 @@
 'use strict';
 
-const { Order, MarketplaceListing, InventoryLot, PricingConfiguration } = require('../models');
+const listingsRepo = require('../repositories/listings');
+const lotsRepo = require('../repositories/lots');
+const ordersRepo = require('../repositories/orders');
+const pricingRepo = require('../repositories/pricing');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../middleware/asyncHandler');
 const { ok, created, paginated } = require('../utils/apiResponse');
+const { serializeOrder } = require('../utils/serializers');
 const { computeOrderTotals } = require('../services/pricingService');
 const { notifyOrder } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
@@ -11,7 +15,6 @@ const { generateReference } = require('../utils/idGenerator');
 const { parsePage } = require('../utils/numbers');
 const {
   ORDER_STATUS,
-  LISTING_STATUS,
   ROLES,
   AUDIT_ACTION,
 } = require('../utils/constants');
@@ -29,11 +32,7 @@ const createOrder = asyncHandler(async (req, res) => {
   const resolved = [];
   for (const item of requestedItems) {
     // eslint-disable-next-line no-await-in-loop
-    const listing = await MarketplaceListing.findOne({
-      _id: item.listingId,
-      active: true,
-      publicationStatus: LISTING_STATUS.PUBLISHED,
-    }).lean();
+    const listing = await listingsRepo.findSellableById(item.listingId);
 
     if (!listing) {
       throw ApiError.badRequest('One or more selected materials are no longer available');
@@ -41,7 +40,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
     // Authoritative stock check against the inventory lot.
     // eslint-disable-next-line no-await-in-loop
-    const lot = await InventoryLot.findById(listing.inventoryLot).lean();
+    const lot = await lotsRepo.findById(listing.inventoryLotId);
     if (!lot) throw ApiError.conflict('Inventory for a selected material is unavailable');
 
     const weightKg = Number(item.weightKg);
@@ -57,7 +56,7 @@ const createOrder = asyncHandler(async (req, res) => {
       );
     }
 
-    const existing = resolved.find((r) => String(r.listing._id) === String(listing._id));
+    const existing = resolved.find((r) => String(r.listing.id) === String(listing.id));
     if (existing) {
       existing.weightKg += weightKg; // merge duplicates
     } else {
@@ -75,28 +74,25 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   // Per-material tax: use the active pricing config for each material category.
-  const categoryIds = [...new Set(resolved.map((r) => String(r.listing.materialCategory)))];
-  const pricingConfigs = await PricingConfiguration.find({
-    materialCategory: { $in: categoryIds },
-    active: true,
-  }).lean();
+  const categoryIds = [...new Set(resolved.map((r) => String(r.listing.materialCategoryId)))];
+  const pricingConfigs = await pricingRepo.findActiveForCategories(categoryIds);
   const taxForCategory = (categoryId) => {
     const cfg = pricingConfigs.find(
-      (c) => String(c.materialCategory) === String(categoryId) && !c.materialType,
-    ) || pricingConfigs.find((c) => String(c.materialCategory) === String(categoryId));
+      (c) => String(c.materialCategoryId) === String(categoryId) && !c.materialType,
+    ) || pricingConfigs.find((c) => String(c.materialCategoryId) === String(categoryId));
     return cfg ? cfg.taxPercent : env.business.taxPercent;
   };
 
   const pricedInputs = resolved.map((r) => ({
-    listing: r.listing._id,
-    inventoryLot: r.lot._id,
+    listing: r.listing.id,
+    inventoryLot: r.lot.id,
     materialName: r.listing.title,
     materialType: r.listing.materialType,
     qualityGrade: r.listing.qualityGrade,
     condition: r.listing.condition,
     weightKg: r.weightKg,
     unitPricePaise: r.listing.pricePerKgPaise,
-    taxPercent: taxForCategory(r.listing.materialCategory),
+    taxPercent: taxForCategory(r.listing.materialCategoryId),
   }));
 
   const totals = computeOrderTotals({
@@ -117,9 +113,9 @@ const createOrder = asyncHandler(async (req, res) => {
     : 0;
   const totalPaise = totals.materialSubtotalPaise + taxPaise + totals.transportationPaise + totals.otherFeesPaise;
 
-  const order = await Order.create({
+  const order = await ordersRepo.create({
     orderNumber: generateReference('ORD'),
-    buyer: req.user._id,
+    buyerId: req.user.id,
     delivery,
     items: totals.items.map((it) => ({
       listing: it.listing,
@@ -143,48 +139,49 @@ const createOrder = asyncHandler(async (req, res) => {
     // Delivery cost is not computed from any real logistics source -> provisional.
     quoteIsProvisional: true,
     status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
-    statusHistory: [{ status: ORDER_STATUS.PENDING_ADMIN_APPROVAL, at: new Date(), by: req.user._id, note: 'Purchase request submitted' }],
+    statusHistory: [{
+      status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
+      at: new Date(),
+      by: req.user.id,
+      note: 'Purchase request submitted',
+    }],
     notes: notes || '',
   });
 
   await notifyOrder(
-    req.user._id,
+    req.user.id,
     'Purchase request submitted',
     `Your purchase request ${order.orderNumber} was submitted and is pending review.`,
-    order._id,
+    order.id,
   );
-  await recordAudit({ action: AUDIT_ACTION.ORDER_CREATE, resourceType: 'Order', resourceId: order._id, req });
+  await recordAudit({ action: AUDIT_ACTION.ORDER_CREATE, resourceType: 'Order', resourceId: order.id, req });
 
-  return created(res, { order: order.toJSON() }, 'Purchase request submitted');
+  return created(res, { order: serializeOrder(order) }, 'Purchase request submitted');
 });
 
 /** GET /orders/my */
 const myOrders = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = { buyer: req.user._id };
-  if (req.query.status) filter.status = req.query.status;
-
-  const [docs, total] = await Promise.all([
-    Order.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-    Order.countDocuments(filter),
-  ]);
-  const items = docs.map((doc) => ({ ...doc, id: doc._id }));
+  const { rows, total } = await ordersRepo.list({
+    buyerId: req.user.id,
+    status: req.query.status,
+    skip,
+    take: limit,
+  });
+  const items = rows.map(serializeOrder);
   return paginated(res, items, { page, limit, total });
 });
 
 /** GET /orders/:id — buyer or admin only. */
 const getOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id)
-    .populate('buyer', 'name email phone')
-    .populate('items.listing', 'title publicationStatus active')
-    .populate('items.inventoryLot', 'lotNumber lotStatus');
+  const order = await ordersRepo.findDetail(req.params.id);
   if (!order) throw ApiError.notFound('Order not found');
 
   const isAdmin = req.user.role === ROLES.ADMIN;
-  const isOwner = String(order.buyer._id || order.buyer) === String(req.user._id);
+  const isOwner = String(order.buyerId) === String(req.user.id);
   if (!isAdmin && !isOwner) throw ApiError.forbidden('You cannot view this order');
 
-  return ok(res, { order });
+  return ok(res, { order: serializeOrder(order) });
 });
 
 module.exports = { createOrder, myOrders, getOrder };

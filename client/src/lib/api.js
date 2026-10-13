@@ -8,6 +8,41 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// ── CSRF (double-submit cookie) ─────────────────────────────────────────────
+// The API issues a non-HttpOnly `mm.csrf` cookie (GET /auth/csrf on first use);
+// every unsafe request must echo it back in the `x-csrf-token` header.
+const CSRF_COOKIE = 'mm.csrf';
+const UNSAFE_METHODS = ['post', 'put', 'patch', 'delete'];
+
+function readCsrfCookie() {
+  const match = document.cookie.match(/(?:^|;\s*)mm\.csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+let csrfPromise = null;
+
+async function ensureCsrfToken() {
+  const existing = readCsrfCookie();
+  if (existing) return existing;
+  if (!csrfPromise) {
+    csrfPromise = api
+      .get('/auth/csrf')
+      .then(() => readCsrfCookie())
+      .finally(() => {
+        csrfPromise = null;
+      });
+  }
+  return csrfPromise;
+}
+
+api.interceptors.request.use(async (config) => {
+  const method = (config.method || 'get').toLowerCase();
+  if (!UNSAFE_METHODS.includes(method)) return config;
+  const token = await ensureCsrfToken();
+  if (token) config.headers['x-csrf-token'] = token;
+  return config;
+});
+
 export const endpoints = {
   auth: {
     register: (d) => api.post('/auth/register', d),
@@ -31,6 +66,15 @@ export const endpoints = {
   orders: {
     create: (body) => api.post('/orders', body),
     my: (params) => api.get('/orders/my', { params }),
+  },
+  auctions: {
+    list: (params) => api.get('/auctions', { params }),
+    get: (id) => api.get(`/auctions/${id}`),
+    settings: () => api.get('/auctions/settings'),
+    bids: (id, params) => api.get(`/auctions/${id}/bids`, { params }),
+    placeBid: (id, body) => api.post(`/auctions/${id}/bids`, body),
+    my: (params) => api.get('/auctions/my', { params }),
+    myBids: (params) => api.get('/auctions/my/bids', { params }),
   },
   notifications: {
     my: () => api.get('/notifications/my'),
@@ -60,6 +104,13 @@ export const endpoints = {
     inventory: (params) => api.get('/admin/inventory', { params }),
     lot: (id) => api.get(`/admin/inventory/${id}`),
     audit: (params) => api.get('/admin/audit-logs', { params }),
+    auctions: (params) => api.get('/admin/auctions', { params }),
+    auction: (id) => api.get(`/admin/auctions/${id}`),
+    auctionBids: (id, params) => api.get(`/admin/auctions/${id}/bids`, { params }),
+    updateAuction: (id, body) => api.patch(`/admin/auctions/${id}`, body),
+    auctionAction: (id, action, body) => api.post(`/admin/auctions/${id}/${action}`, body),
+    auctionSettings: () => api.get('/admin/auction-settings'),
+    updateAuctionSettings: (body) => api.patch('/admin/auction-settings', body),
   },
 };
 

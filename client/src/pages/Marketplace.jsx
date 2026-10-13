@@ -42,7 +42,7 @@ export default function Marketplace() {
         category: category || undefined,
         sort,
       })
-      .then((r) => setData(r.data.data))
+      .then((r) => setData({ data: r.data.data, meta: r.data.meta }))
       .catch(() => setData({ data: [] }))
       .finally(() => setLoading(false));
   }, [page, search, category, sort]);

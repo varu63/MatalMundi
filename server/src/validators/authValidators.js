@@ -49,10 +49,15 @@ const updateProfileSchema = z.object({
   address: addressSchema.partial().optional(),
 });
 
+const verifyEmailSchema = z.object({
+  token: z.string().trim().min(10, 'Invalid token').max(200),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   updateProfileSchema,
+  verifyEmailSchema,
 };

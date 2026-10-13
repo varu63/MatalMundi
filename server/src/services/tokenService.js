@@ -7,7 +7,7 @@ const AUTH_COOKIE = 'mm.token';
 
 function signToken(user) {
   return jwt.sign(
-    { sub: String(user._id || user.id), role: user.role },
+    { sub: String(user.id || user._id), role: user.role },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn },
   );

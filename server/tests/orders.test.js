@@ -2,7 +2,7 @@
 
 const request = require('supertest');
 const app = require('../src/app');
-const { createUser, createAdmin, createCategory, InventoryLot, MarketplaceListing } = require('./utils');
+const { createUser, createAdmin, createCategory, lots, listings } = require('./utils');
 
 async function cookieFor(user) {
   const res = await request(app)
@@ -29,11 +29,10 @@ async function seedListing({ availableKg, pricePerKgPaise = 2000, minPurchaseKg 
   const category = await createCategory('Orders Cat');
   const seller = await createUser({ email: `seller-${Date.now()}@test.dev` });
 
-  const lot = await InventoryLot.create({
+  const lot = await lots.create({
     lotNumber: `LOT-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-    sourceSubmission: null,
-    seller: seller._id,
-    materialCategory: category._id,
+    sellerId: seller.id,
+    materialCategoryId: category.id,
     materialType: 'MS Scrap',
     qualityGrade: 'B',
     condition: 'LOOSE',
@@ -44,13 +43,13 @@ async function seedListing({ availableKg, pricePerKgPaise = 2000, minPurchaseKg 
     location: { city: 'Chennai', state: 'Tamil Nadu' },
     lotStatus: 'PUBLISHED',
   });
-  const listing = await MarketplaceListing.create({
+  const listing = await listings.create({
     title: 'MS Scrap (orders test)',
-    materialCategory: category._id,
+    materialCategoryId: category.id,
     materialType: 'MS Scrap',
     description: 'Test listing for orders.',
     images: [{ url: 'http://localhost/test.png', publicId: 't.png', provider: 'local' }],
-    inventoryLot: lot._id,
+    inventoryLotId: lot.id,
     qualityGrade: 'B',
     condition: 'LOOSE',
     pricePerKgPaise,
@@ -85,18 +84,18 @@ function orderBody(listingId, weightKg) {
 describe('Orders — pricing, stock, concurrency', () => {
   test('orders require authentication', async () => {
     const { listing } = await seedListing({ availableKg: 50 });
-    const res = await request(app).post('/api/v1/orders').send(orderBody(listing._id, 10));
+    const res = await request(app).post('/api/v1/orders').send(orderBody(listing.id, 10));
     expect(res.status).toBe(401);
   });
 
-  test('missing delivery fields are rejected (422)', async () => {
+  test('missing delivery fields are rejected (400)', async () => {
     const { buyerCookie } = await party();
     const { listing } = await seedListing({ availableKg: 50 });
     const res = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send({ items: [cartItem(listing._id, 10)] });
-    expect(res.status).toBe(422);
+      .send({ items: [cartItem(listing.id, 10)] });
+    expect(res.status).toBe(400);
   });
 
   test('buyers cannot order more than available stock', async () => {
@@ -105,7 +104,7 @@ describe('Orders — pricing, stock, concurrency', () => {
     const res = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send(orderBody(listing._id, 45));
+      .send(orderBody(listing.id, 45));
     expect(res.status).toBe(400);
     expect(res.body.message).toContain('currently available');
   });
@@ -116,7 +115,7 @@ describe('Orders — pricing, stock, concurrency', () => {
     const res = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send(orderBody(listing._id, 20));
+      .send(orderBody(listing.id, 20));
     expect(res.status).toBe(400);
     expect(res.body.message).toContain('Minimum purchase');
   });
@@ -128,7 +127,7 @@ describe('Orders — pricing, stock, concurrency', () => {
     const res = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send(orderBody(listing._id, 50));
+      .send(orderBody(listing.id, 50));
     expect(res.status).toBe(201);
     const order = res.body.data.order;
     expect(order.materialSubtotalPaise).toBe(100000);
@@ -144,11 +143,11 @@ describe('Orders — pricing, stock, concurrency', () => {
     const o1 = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send(orderBody(listing._id, 60));
+      .send(orderBody(listing.id, 60));
     const o2 = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyer2Cookie)
-      .send(orderBody(listing._id, 60));
+      .send(orderBody(listing.id, 60));
     expect(o1.status).toBe(201);
     expect(o2.status).toBe(201);
 
@@ -166,7 +165,7 @@ describe('Orders — pricing, stock, concurrency', () => {
     const statuses = [r1.status, r2.status].sort();
     expect(statuses).toEqual([200, 409]);
 
-    const freshLot = await InventoryLot.findById(lot._id);
+    const freshLot = await lots.findById(lot.id);
     expect(freshLot.availableQuantityKg).toBe(40);
     expect(freshLot.reservedQuantityKg).toBe(60);
 
@@ -184,7 +183,7 @@ describe('Orders — pricing, stock, concurrency', () => {
     const o = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send(orderBody(listing._id, 30));
+      .send(orderBody(listing.id, 30));
     const orderId = o.body.data.order.id;
 
     const accept = await request(app)
@@ -193,7 +192,7 @@ describe('Orders — pricing, stock, concurrency', () => {
       .send({ status: 'ACCEPTED' });
     expect(accept.status).toBe(200);
 
-    let fresh = await InventoryLot.findById(lot._id);
+    let fresh = await lots.findById(lot.id);
     expect(fresh.availableQuantityKg).toBe(70);
     expect(fresh.reservedQuantityKg).toBe(30);
 
@@ -203,7 +202,7 @@ describe('Orders — pricing, stock, concurrency', () => {
       .send({ status: 'REJECTED', reason: 'Delivery address out of service area.' });
     expect(reject.status).toBe(200);
 
-    fresh = await InventoryLot.findById(lot._id);
+    fresh = await lots.findById(lot.id);
     expect(fresh.availableQuantityKg).toBe(100);
     expect(fresh.reservedQuantityKg).toBe(0);
   });
@@ -214,7 +213,7 @@ describe('Orders — pricing, stock, concurrency', () => {
     const o = await request(app)
       .post('/api/v1/orders')
       .set('Cookie', buyerCookie)
-      .send(orderBody(listing._id, 10));
+      .send(orderBody(listing.id, 10));
     const orderId = o.body.data.order.id;
 
     const res = await request(app)

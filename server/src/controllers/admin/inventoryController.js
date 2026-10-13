@@ -1,42 +1,31 @@
 'use strict';
 
-const { InventoryLot, InventoryMovement } = require('../../models');
+const lotsRepo = require('../../repositories/lots');
+const movementsRepo = require('../../repositories/movements');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { ok, paginated } = require('../../utils/apiResponse');
+const { serializeLot, serializeMovement } = require('../../utils/serializers');
 const { parsePage } = require('../../utils/numbers');
 
 /** GET /admin/inventory — stock per lot with source traceability. */
 const listInventory = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = {};
-  if (req.query.status) filter.lotStatus = req.query.status;
-  if (req.query.materialType) filter.materialType = req.query.materialType;
-
-  const [items, total] = await Promise.all([
-    InventoryLot.find(filter)
-      .sort({ updatedAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('materialCategory', 'name')
-      .populate('sourceSubmission', 'submissionNumber seller status')
-      .populate('seller', 'name email')
-      .lean(),
-    InventoryLot.countDocuments(filter),
-  ]);
-
-  return paginated(res, items, { page, limit, total });
+  const { rows, total } = await lotsRepo.list({
+    lotStatus: req.query.status,
+    materialType: req.query.materialType,
+    skip,
+    take: limit,
+  });
+  return paginated(res, rows.map(serializeLot), { page, limit, total });
 });
 
 /** GET /admin/inventory/:id — lot detail + movements. */
 const getInventory = asyncHandler(async (req, res) => {
-  const lot = await InventoryLot.findById(req.params.id)
-    .populate('materialCategory', 'name')
-    .populate('sourceSubmission', 'submissionNumber status')
-    .populate('seller', 'name email');
+  const lot = await lotsRepo.findById(req.params.id, { populate: true });
   if (!lot) return ok(res, { lot: null });
 
-  const movements = await InventoryMovement.find({ lot: lot._id }).sort({ createdAt: -1 }).limit(100).lean();
-  return ok(res, { lot, movements });
+  const movements = await movementsRepo.findByLot(lot.id, { take: 100 });
+  return ok(res, { lot: serializeLot(lot), movements: movements.map(serializeMovement) });
 });
 
 module.exports = { listInventory, getInventory };

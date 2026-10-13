@@ -1,5 +1,6 @@
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
+import Sidebar from './Sidebar';
 import Footer from './Footer';
 import Spinner from './Spinner';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +10,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
+      <Sidebar />
       <main className="flex-1">
         {loading ? (
           <div className="flex h-[60vh] items-center justify-center">

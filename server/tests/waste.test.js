@@ -8,6 +8,7 @@ const {
   createPricing,
   submitWaste,
   attachImages,
+  categories,
 } = require('./utils');
 
 async function freshSellerCookie() {
@@ -23,7 +24,7 @@ async function multipartSubmission(cookie, body) {
   for (const [k, v] of Object.entries(body)) {
     if (v === null || v === undefined) continue;
     if (k === 'pickup') req = req.field('pickup', JSON.stringify(v));
-    else if (typeof v === 'object') req = req.field(k, typeof v.toHexString === 'function' ? String(v) : JSON.stringify(v));
+    else if (typeof v === 'object') req = req.field(k, JSON.stringify(v));
     else req = req.field(k, String(v));
   }
   req = await attachImages(req);
@@ -34,7 +35,7 @@ describe('Waste submission rules', () => {
   test('submissions below 100 kg are rejected', async () => {
     const cookie = await freshSellerCookie();
     const res = await submitWaste({ cookie, quantityKg: 99.9 });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   test('submissions of exactly 100 kg are accepted', async () => {
@@ -51,7 +52,7 @@ describe('Waste submission rules', () => {
     await createPricing(category);
 
     let req = request(app).post('/api/v1/waste-submissions').set('Cookie', cookie);
-    req = req.field('materialCategory', String(category._id))
+    req = req.field('materialCategory', String(category.id))
       .field('materialType', 'Aluminium')
       .field('quantityKg', '120')
       .field('condition', 'BALED')
@@ -77,7 +78,7 @@ describe('Waste submission rules', () => {
     await createPricing(category, { materialType: 'Plastics' });
 
     let req = request(app).post('/api/v1/waste-submissions').set('Cookie', cookie);
-    req = req.field('materialCategory', String(category._id))
+    req = req.field('materialCategory', String(category.id))
       .field('materialType', 'HDPE')
       .field('quantityKg', '150')
       .field('condition', 'LOOSE')
@@ -120,11 +121,10 @@ describe('Waste submission rules', () => {
   test('unsupported/inactive categories are rejected', async () => {
     const cookie = await freshSellerCookie();
     const inactive = await createCategory('Inactive');
-    inactive.active = false;
-    await inactive.save();
+    await categories.updateById(inactive.id, { active: false });
 
     const res = await multipartSubmission(cookie, {
-      materialCategory: inactive._id,
+      materialCategory: inactive.id,
       materialType: 'Anything',
       quantityKg: 300,
       condition: 'LOOSE',
@@ -148,7 +148,7 @@ describe('Waste submission rules', () => {
       .post('/api/v1/waste-submissions/estimate')
       .set('Cookie', cookie)
       .send({
-        materialCategory: category._id,
+        materialCategory: category.id,
         materialType: 'Copper',
         quantityKg: 200,
         qualityGrade: 'A',
@@ -169,7 +169,7 @@ describe('Waste submission rules', () => {
       .post('/api/v1/waste-submissions/estimate')
       .set('Cookie', cookie)
       .send({
-        materialCategory: category._id,
+        materialCategory: category.id,
         materialType: 'Brass',
         quantityKg: 100,
         qualityGrade: 'B',

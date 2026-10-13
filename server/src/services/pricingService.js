@@ -1,6 +1,6 @@
 'use strict';
 
-const { PricingConfiguration } = require('../models');
+const pricingRepo = require('../repositories/pricing');
 const env = require('../config/env');
 const { percentOfPaise } = require('../utils/money');
 const { round2 } = require('../utils/numbers');
@@ -12,15 +12,8 @@ const { DEMAND_BASIS, DEFAULT_QUALITY_MULTIPLIERS } = require('../utils/constant
  * Returns the active pricing rule for a category + optional material type.
  * Falls back to a category-wide rule, then to a `null` (caller decides).
  */
-async function getActivePricing(materialCategory, materialType = '') {
-  const base = { materialCategory, active: true };
-  if (materialType) {
-    const specific = await PricingConfiguration.findOne({ ...base, materialType })
-      .sort({ version: -1 })
-      .lean();
-    if (specific) return specific;
-  }
-  return PricingConfiguration.findOne({ ...base, materialType: '' }).sort({ version: -1 }).lean();
+async function getActivePricing(materialCategoryId, materialType = '') {
+  return pricingRepo.getActive(materialCategoryId, materialType);
 }
 
 function qualityMultiplierFor(config, grade) {
@@ -63,7 +56,7 @@ function computeValuation({ pricingConfig, quantityKg, qualityGrade, pickup = {}
   const estimatedPayoutPaise = materialValuePaise - pickupCostPaise - platformFeePaise;
 
   return {
-    pricingConfigId: pricingConfig._id,
+    pricingConfigId: pricingConfig.id,
     pricingVersion: pricingConfig.version,
     materialRatePerKgPaise: ratePerKgPaise,
     qualityMultiplier,
@@ -82,6 +75,25 @@ function computeValuation({ pricingConfig, quantityKg, qualityGrade, pickup = {}
     isProvisional: true,
     calculatedAt: new Date(),
     currency: 'INR',
+  };
+}
+
+/**
+ * Pickup-cost component on its own, so auction settlement reuses the exact
+ * same math as submission valuation without recomputing a material value.
+ */
+function computePickupCostPaise(pricingConfig, pickup = {}) {
+  const dist = estimateDistanceKm(pickup);
+  const basePickupChargePaise =
+    pricingConfig?.basePickupChargePaise ?? Math.round(env.business.basePickupCharge * 100);
+  const perKmChargePaise =
+    pricingConfig?.perKmChargePaise ?? Math.round(env.business.perKmCharge * 100);
+  return {
+    pickupCostPaise: Math.round(basePickupChargePaise + dist.distanceKm * perKmChargePaise),
+    basePickupChargePaise,
+    perKmChargePaise,
+    estimatedDistanceKm: dist.distanceKm,
+    distanceIsProvisional: dist.provisional,
   };
 }
 
@@ -134,6 +146,7 @@ function computeOrderTotals({ items, taxPercent, transportationPaise = 0, otherF
 module.exports = {
   getActivePricing,
   computeValuation,
+  computePickupCostPaise,
   normalizeDemand,
   computeOrderTotals,
   qualityMultiplierFor,

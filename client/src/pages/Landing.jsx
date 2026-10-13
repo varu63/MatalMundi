@@ -10,7 +10,7 @@ export default function Landing() {
   useEffect(() => {
     endpoints.marketplace
       .list({ limit: 6, sort: 'newest' })
-      .then((res) => setFeatured(res.data.data.data || []))
+      .then((res) => setFeatured(res.data.data || []))
       .catch(() => {});
   }, []);
 

@@ -35,8 +35,31 @@ export const statusTone = (status) => {
     CANCELLED: 'bg-red-100 text-red-800',
     ACTIVE: 'bg-emerald-100 text-emerald-800',
     SUSPENDED: 'bg-red-100 text-red-800',
+    SCHEDULED: 'bg-blue-100 text-blue-800',
+    ENDED: 'bg-slate-100 text-slate-700',
+    NO_BIDS: 'bg-slate-100 text-slate-700',
+    AWAITING_PAYMENT: 'bg-amber-100 text-amber-800',
+    AWAITING_PICKUP: 'bg-indigo-100 text-indigo-800',
+    COMPLETED: 'bg-green-100 text-green-800',
+    LEADING: 'bg-emerald-100 text-emerald-800',
+    OUTBID: 'bg-orange-100 text-orange-800',
+    WON: 'bg-green-100 text-green-800',
+    LOST: 'bg-slate-100 text-slate-700',
   };
   return map[s] || 'bg-gray-100 text-gray-700';
+};
+
+/** mm:ss / hh:mm:ss left until an ISO timestamp ('' when past). */
+export const countdown = (iso) => {
+  if (!iso) return '';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return '';
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 };
 
 export const imageUrl = (img) => (img?.url ? img.url : '');

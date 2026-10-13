@@ -2,7 +2,7 @@
 
 const request = require('supertest');
 const app = require('../src/app');
-const { createUser, createAdmin, submitWaste, InventoryLot, InventoryMovement } = require('./utils');
+const { createUser, createAdmin, submitWaste, lots, movements } = require('./utils');
 
 async function cookieFor(user) {
   const res = await request(app)
@@ -73,7 +73,7 @@ describe('Full seller → admin → buyer workflow', () => {
       .send({ acceptedQuantityKg: 100 });
     expect(collect.status).toBe(200);
     const lotId = collect.body.data.lot.id;
-    const lot = await InventoryLot.findById(lotId);
+    const lot = await lots.findById(lotId);
     expect(lot.availableQuantityKg).toBe(100);
 
     // 6. Publish to marketplace.
@@ -121,7 +121,7 @@ describe('Full seller → admin → buyer workflow', () => {
       .send({ status: 'ACCEPTED' });
     expect(accept.status).toBe(200);
 
-    let fresh = await InventoryLot.findById(lotId);
+    let fresh = await lots.findById(lotId);
     expect(fresh.availableQuantityKg).toBe(70);
     expect(fresh.reservedQuantityKg).toBe(30);
 
@@ -135,13 +135,13 @@ describe('Full seller → admin → buyer workflow', () => {
       expect(r.status).toBe(200);
     }
 
-    fresh = await InventoryLot.findById(lotId);
+    fresh = await lots.findById(lotId);
     expect(fresh.availableQuantityKg).toBe(70);
     expect(fresh.reservedQuantityKg).toBe(0);
     expect(fresh.soldQuantityKg).toBe(30);
 
-    const movements = await InventoryMovement.find({ lot: lotId });
-    expect(movements.length).toBeGreaterThanOrEqual(3); // IN, RESERVE, COMMIT
+    const movementRows = await movements.findByLot(lotId);
+    expect(movementRows.length).toBeGreaterThanOrEqual(3); // IN, RESERVE, COMMIT
 
     // 11. Buyer can track the order and has a notification.
     const myOrders = await request(app).get('/api/v1/orders/my').set('Cookie', bCookie);

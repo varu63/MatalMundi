@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Camera, CloudUpload, Sparkles } from 'lucide-react';
+import { Camera, CloudUpload, Gavel, Package, Sparkles, Scale } from 'lucide-react';
 import { endpoints, handleError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
@@ -32,25 +32,49 @@ const EMPTY = {
   comments: '',
 };
 
+const EMPTY_AUCTION = {
+  startingPricePerKg: '',
+  expectedPricePerKg: '',
+  minAcceptablePerKg: '',
+  reservePricePerKg: '',
+  durationMinutes: '',
+  inspectionNotes: '',
+};
+
+const EMPTY_IMAGES = { front: null, back: null, left: null, right: null, weightEvidence: null };
+
 export default function SubmitWaste() {
   const { user } = useAuth();
   const toast = useToast();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(EMPTY);
-  const [images, setImages] = useState({ front: null, back: null, left: null, right: null });
+  const [saleMode, setSaleMode] = useState('NORMAL');
+  const [auction, setAuction] = useState(EMPTY_AUCTION);
+  const [auctionSettings, setAuctionSettings] = useState(null);
+  const [images, setImages] = useState(EMPTY_IMAGES);
   const [estimation, setEstimation] = useState(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(0);
 
+  const isAuction = saleMode === 'AUCTION';
+
   useEffect(() => {
     endpoints.categories.list().then((r) => setCategories(r.data.data.categories || [])).catch(() => {});
+    endpoints.auctions.settings().then((r) => setAuctionSettings(r.data.data.settings)).catch(() => {});
   }, []);
 
   const categoriesWithPricing = useMemo(() => categories, [categories]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setAuctionField = (k) => (e) => setAuction((a) => ({ ...a, [k]: e.target.value }));
+
+  const minQuantity = isAuction ? auctionSettings?.minAuctionQuantityKg || 500 : 100;
+  const durationOptions = auctionSettings?.allowedDurationsMinutes?.length
+    ? auctionSettings.allowedDurationsMinutes
+    : [10, 15, 30, 60];
+  const canChooseDuration = auctionSettings?.sellerCanChooseDuration !== false;
 
   const onFile = (key) => (e) => {
     const file = e.target.files?.[0];
@@ -86,6 +110,7 @@ export default function SubmitWaste() {
     setError('');
     try {
       const fd = new FormData();
+      fd.append('saleMode', saleMode);
       fd.append('materialCategory', form.materialCategory);
       fd.append('materialType', form.materialType);
       fd.append('quantityKg', String(form.quantityKg));
@@ -108,10 +133,32 @@ export default function SubmitWaste() {
         if (!file) throw Object.assign(new Error(`Please add the ${side.label} photo.`), { skipToast: true });
         fd.append(side.key, file);
       }
+      if (isAuction) {
+        if (!auction.startingPricePerKg) {
+          throw Object.assign(new Error('Please set a starting price per kg for the auction.'), { skipToast: true });
+        }
+        if (!images.weightEvidence) {
+          throw Object.assign(new Error('Please add the weight-evidence photo (weighbridge slip or scale reading).'), { skipToast: true });
+        }
+        fd.append('startingPricePerKg', String(auction.startingPricePerKg));
+        if (auction.expectedPricePerKg) fd.append('expectedPricePerKg', String(auction.expectedPricePerKg));
+        if (auction.minAcceptablePerKg) fd.append('minAcceptablePerKg', String(auction.minAcceptablePerKg));
+        if (auction.reservePricePerKg) fd.append('reservePricePerKg', String(auction.reservePricePerKg));
+        if (canChooseDuration && auction.durationMinutes) fd.append('durationMinutes', String(auction.durationMinutes));
+        if (auction.inspectionNotes) fd.append('inspectionNotes', auction.inspectionNotes);
+        fd.append('weightEvidence', images.weightEvidence);
+      }
       const res = await endpoints.submissions.create(fd);
-      toast.success(`Submission ${res.data.data.submission.submissionNumber} created`);
+      const body = res.data.data;
+      toast.success(
+        body.auction
+          ? `Auction ${body.auction.auctionNumber} created — pending approval`
+          : `Submission ${body.submission.submissionNumber} created`,
+      );
       setForm(EMPTY);
-      setImages({ front: null, back: null, left: null, right: null });
+      setAuction(EMPTY_AUCTION);
+      setSaleMode('NORMAL');
+      setImages(EMPTY_IMAGES);
       setEstimation(null);
     } catch (err) {
       if (err?.skipToast) setError(err.message);
@@ -124,6 +171,41 @@ export default function SubmitWaste() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr,340px]">
       <form onSubmit={onSubmit} className="card space-y-6 p-6">
+        <div>
+          <h2 className="font-semibold text-ink-900">How do you want to sell?</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setSaleMode('NORMAL')}
+              className={`rounded-xl border-2 p-4 text-left transition ${
+                !isAuction ? 'border-brand-600 bg-brand-50' : 'border-ink-200 hover:border-ink-300'
+              }`}
+            >
+              <span className="flex items-center gap-2 font-semibold text-ink-900">
+                <Package className="h-4 w-4 text-brand-600" /> Normal sale
+              </span>
+              <span className="mt-1 block text-xs text-ink-500">
+                Our team reviews, picks up and pays at the listed market price. Minimum 100 kg.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaleMode('AUCTION')}
+              className={`rounded-xl border-2 p-4 text-left transition ${
+                isAuction ? 'border-brand-600 bg-brand-50' : 'border-ink-200 hover:border-ink-300'
+              }`}
+            >
+              <span className="flex items-center gap-2 font-semibold text-ink-900">
+                <Gavel className="h-4 w-4 text-brand-600" /> Bidding auction
+              </span>
+              <span className="mt-1 block text-xs text-ink-500">
+                Let buyers bid in real time. Minimum{' '}
+                {auctionSettings?.minAuctionQuantityKg || 500} kg — you set the starting price.
+              </span>
+            </button>
+          </div>
+        </div>
+
         <div>
           <h2 className="font-semibold text-ink-900">Material details</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -144,8 +226,12 @@ export default function SubmitWaste() {
             </div>
             <div>
               <label className="label">Quantity (kg)</label>
-              <input type="number" className="input" min="100" value={form.quantityKg} onChange={set('quantityKg')} required />
-              <p className="mt-1 text-xs text-ink-400">Minimum submission is 100 kg.</p>
+              <input type="number" className="input" min={minQuantity} value={form.quantityKg} onChange={set('quantityKg')} required />
+              <p className="mt-1 text-xs text-ink-400">
+                {isAuction
+                  ? `Auctions require at least ${auctionSettings?.minAuctionQuantityKg || 500} kg.`
+                  : 'Minimum submission is 100 kg.'}
+              </p>
             </div>
             <div>
               <label className="label">Condition</label>
@@ -185,6 +271,99 @@ export default function SubmitWaste() {
           </div>
         </div>
 
+        {isAuction && (
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold text-ink-900">
+              <Gavel className="h-4 w-4 text-brand-600" /> Auction settings
+            </h2>
+            <p className="mt-1 text-xs text-ink-500">
+              These values stay separate — the reserve price is never shown to bidders.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label">Starting price (₹/kg) *</label>
+                <input
+                  type="number"
+                  className="input"
+                  min="0"
+                  step="0.01"
+                  value={auction.startingPricePerKg}
+                  onChange={setAuctionField('startingPricePerKg')}
+                  placeholder="First bid must be at least this"
+                />
+              </div>
+              <div>
+                <label className="label">Expected price (₹/kg)</label>
+                <input
+                  type="number"
+                  className="input"
+                  min="0"
+                  step="0.01"
+                  value={auction.expectedPricePerKg}
+                  onChange={setAuctionField('expectedPricePerKg')}
+                  placeholder="What you hope to get (private)"
+                />
+              </div>
+              <div>
+                <label className="label">Minimum acceptable bid (₹/kg)</label>
+                <input
+                  type="number"
+                  className="input"
+                  min="0"
+                  step="0.01"
+                  value={auction.minAcceptablePerKg}
+                  onChange={setAuctionField('minAcceptablePerKg')}
+                  placeholder="Your floor (private)"
+                />
+              </div>
+              <div>
+                <label className="label">Reserve price (₹/kg)</label>
+                <input
+                  type="number"
+                  className="input"
+                  min="0"
+                  step="0.01"
+                  value={auction.reservePricePerKg}
+                  onChange={setAuctionField('reservePricePerKg')}
+                  placeholder="Below this the auction ends without a winner"
+                />
+              </div>
+              {canChooseDuration ? (
+                <div>
+                  <label className="label">Auction duration</label>
+                  <select className="input" value={auction.durationMinutes} onChange={setAuctionField('durationMinutes')}>
+                    <option value="">
+                      Default ({auctionSettings?.defaultDurationMinutes || 30} minutes)
+                    </option>
+                    {durationOptions.map((d) => (
+                      <option key={d} value={d}>
+                        {d} minutes
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="label">Auction duration</label>
+                  <p className="input bg-ink-50 text-ink-500">
+                    {auctionSettings?.defaultDurationMinutes || 30} minutes (set by MetalMundi)
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="mt-4">
+              <label className="label">Inspection notes (optional)</label>
+              <textarea
+                className="input"
+                rows={2}
+                value={auction.inspectionNotes}
+                onChange={setAuctionField('inspectionNotes')}
+                placeholder="Anything inspectors should verify before approval…"
+              />
+            </div>
+          </div>
+        )}
+
         <div>
           <h2 className="font-semibold text-ink-900">Pickup location & contact</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -222,7 +401,9 @@ export default function SubmitWaste() {
         <div>
           <h2 className="flex items-center gap-2 font-semibold text-ink-900">
             <Camera className="h-4 w-4 text-brand-600" /> Photographs
-            <span className="text-xs font-normal text-ink-400">(4 required — front, back, left, right)</span>
+            <span className="text-xs font-normal text-ink-400">
+              (4 required — front, back, left, right{isAuction ? ' + weight evidence' : ''})
+            </span>
           </h2>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {IMAGE_SIDES.map((s) => (
@@ -239,14 +420,35 @@ export default function SubmitWaste() {
               </label>
             ))}
           </div>
+          {isAuction && (
+            <label className="group mt-3 flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-brand-300 bg-brand-50/50 p-3 transition hover:border-brand-400">
+              <Scale className="h-5 w-5 shrink-0 text-brand-600" />
+              <span className="flex-1 text-sm">
+                <span className="font-medium text-ink-800">Weight evidence *</span>
+                <span className="block text-xs text-ink-500">
+                  Weighbridge slip, scale reading or gate pass proving the {minQuantity} kg lot.
+                </span>
+              </span>
+              {images.weightEvidence ? (
+                <img src={URL.createObjectURL(images.weightEvidence)} alt="Weight evidence" className="h-14 w-14 rounded object-cover ring-2 ring-brand-500" />
+              ) : (
+                <span className="chip bg-white text-brand-700">Upload</span>
+              )}
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile('weightEvidence')} />
+            </label>
+          )}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex items-center gap-3">
           <button type="submit" className="btn-primary" disabled={busy}>
-            {busy ? 'Submitting…' : 'Submit for review'}
+            {busy ? 'Submitting…' : isAuction ? 'Submit auction for review' : 'Submit for review'}
           </button>
-          <p className="text-xs text-ink-500">Our team verifies & picks up before the material is listed.</p>
+          <p className="text-xs text-ink-500">
+            {isAuction
+              ? 'Approved auctions go live for real-time bidding.'
+              : 'Our team verifies & picks up before the material is listed.'}
+          </p>
         </div>
       </form>
 
@@ -276,14 +478,26 @@ export default function SubmitWaste() {
         </div>
 
         <div className="card p-5 text-sm">
-          <h3 className="mb-2 font-semibold text-ink-900">How it works</h3>
-          <ol className="list-inside list-decimal space-y-1.5 text-ink-600">
-            <li>Submit your material & photos.</li>
-            <li>Our team reviews the lot.</li>
-            <li>Material is collected & weighed.</li>
-            <li>It is listed at a fair market price.</li>
-            <li>You get paid on delivery.</li>
-          </ol>
+          <h3 className="mb-2 font-semibold text-ink-900">
+            {isAuction ? 'How auctions work' : 'How it works'}
+          </h3>
+          {isAuction ? (
+            <ol className="list-inside list-decimal space-y-1.5 text-ink-600">
+              <li>Submit the lot with weight evidence.</li>
+              <li>Our team approves & schedules the auction.</li>
+              <li>Buyers bid in real time until the timer ends.</li>
+              <li>The highest bid at or above your reserve wins.</li>
+              <li>We collect, weigh and pay out your share.</li>
+            </ol>
+          ) : (
+            <ol className="list-inside list-decimal space-y-1.5 text-ink-600">
+              <li>Submit your material & photos.</li>
+              <li>Our team reviews the lot.</li>
+              <li>Material is collected & weighed.</li>
+              <li>It is listed at a fair market price.</li>
+              <li>You get paid on delivery.</li>
+            </ol>
+          )}
         </div>
       </aside>
     </div>

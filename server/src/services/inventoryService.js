@@ -1,11 +1,9 @@
 'use strict';
 
-const {
-  InventoryLot,
-  InventoryMovement,
-  MarketplaceListing,
-  WasteSubmission,
-} = require('../models');
+const lotsRepo = require('../repositories/lots');
+const listingsRepo = require('../repositories/listings');
+const submissionsRepo = require('../repositories/submissions');
+const movementsRepo = require('../repositories/movements');
 const ApiError = require('../utils/ApiError');
 const logger = require('../utils/logger');
 const { generateReference } = require('../utils/idGenerator');
@@ -14,16 +12,17 @@ const { INVENTORY_LOT_STATUS, INVENTORY_MOVEMENT_TYPE, LISTING_STATUS } = requir
 /** Records an inventory movement row (best-effort; never blocks the caller). */
 async function recordMovement({ lot, type, quantityKg, lotSnapshot, reason = '', order = null, actor = null }) {
   try {
-    await InventoryMovement.create({
-      lot: lot || (lotSnapshot && lotSnapshot._id),
+    const lotId = (typeof lot === 'object' && lot && lot.id) || lot || lotSnapshot?.id;
+    await movementsRepo.create({
+      lotId,
       type,
       quantityKg,
       balanceAvailableKg: lotSnapshot?.availableQuantityKg ?? 0,
       balanceReservedKg: lotSnapshot?.reservedQuantityKg ?? 0,
       balanceSoldKg: lotSnapshot?.soldQuantityKg ?? 0,
       reason,
-      order,
-      actor,
+      orderId: order,
+      actorId: actor,
     });
   } catch (err) {
     logger.warn(`Inventory movement log failed: ${err.message}`);
@@ -39,11 +38,12 @@ async function createLotFromSubmission({ submission, actor }) {
     ? Number(submission.acceptedQuantityKg)
     : Number(submission.quantityKg);
 
-  const lot = await InventoryLot.create({
+  const pickup = submission.pickup || {};
+  const lot = await lotsRepo.create({
     lotNumber: generateReference('LOT'),
-    sourceSubmission: submission._id,
-    seller: submission.seller,
-    materialCategory: submission.materialCategory,
+    sourceSubmissionId: submission.id,
+    sellerId: submission.sellerId,
+    materialCategoryId: submission.materialCategoryId,
     materialType: submission.materialType,
     qualityGrade: submission.qualityGrade,
     condition: submission.condition,
@@ -51,13 +51,13 @@ async function createLotFromSubmission({ submission, actor }) {
     availableQuantityKg: accepted,
     reservedQuantityKg: 0,
     soldQuantityKg: 0,
-    location: { city: submission.pickup?.city || '', state: submission.pickup?.state || '' },
+    location: { city: pickup.city || '', state: pickup.state || '' },
     lotStatus: INVENTORY_LOT_STATUS.ACCEPTED,
     receivedAt: new Date(),
   });
 
   await recordMovement({
-    lot: lot._id,
+    lot: lot.id,
     type: INVENTORY_MOVEMENT_TYPE.IN,
     quantityKg: accepted,
     lotSnapshot: lot,
@@ -71,17 +71,12 @@ async function createLotFromSubmission({ submission, actor }) {
 /** Syncs the denormalised listing cache from the authoritative lot. */
 async function refreshListingCache(lot) {
   if (!lot) return;
-  await MarketplaceListing.updateOne(
-    { inventoryLot: lot._id },
-    {
-      $set: {
-        acceptedQuantityKg: lot.acceptedQuantityKg,
-        availableQuantityKg: lot.availableQuantityKg,
-        reservedQuantityKg: lot.reservedQuantityKg,
-        soldQuantityKg: lot.soldQuantityKg,
-      },
-    },
-  );
+  await listingsRepo.updateByInventoryLotId(lot.id, {
+    acceptedQuantityKg: lot.acceptedQuantityKg,
+    availableQuantityKg: lot.availableQuantityKg,
+    reservedQuantityKg: lot.reservedQuantityKg,
+    soldQuantityKg: lot.soldQuantityKg,
+  });
 }
 
 /** Recomputes lot status from its balances (published vs accepted vs depleted). */
@@ -95,25 +90,20 @@ function deriveLotStatus(lot, currentListingStatus) {
 
 /**
  * Atomically reserves `quantityKg` from a lot. Concurrency-safe: the update is
- * a single conditional `$inc`, so two simultaneous orders can never reserve the
- * same stock (no transactions / replica set required).
+ * a single conditional statement, so two simultaneous orders can never reserve
+ * the same stock.
  */
 async function reserveLot({ lotId, quantityKg, orderId = null, actor = null }) {
   const qty = Number(quantityKg);
   if (!(qty > 0)) throw ApiError.badRequest('Reservation quantity must be positive');
 
-  const lot = await InventoryLot.findOneAndUpdate(
-    { _id: lotId, availableQuantityKg: { $gte: qty } },
-    { $inc: { availableQuantityKg: -qty, reservedQuantityKg: qty } },
-    { new: true },
-  );
-
+  const lot = await lotsRepo.tryReserve(lotId, qty);
   if (!lot) {
     throw ApiError.conflict('Insufficient available stock to reserve the requested quantity');
   }
 
   await recordMovement({
-    lot: lot._id,
+    lot: lot.id,
     type: INVENTORY_MOVEMENT_TYPE.RESERVE,
     quantityKg: qty,
     lotSnapshot: lot,
@@ -130,18 +120,14 @@ async function releaseLot({ lotId, quantityKg, orderId = null, actor = null, rea
   const qty = Number(quantityKg);
   if (!(qty > 0)) return null;
 
-  const lot = await InventoryLot.findOneAndUpdate(
-    { _id: lotId, reservedQuantityKg: { $gte: qty } },
-    { $inc: { availableQuantityKg: qty, reservedQuantityKg: -qty } },
-    { new: true },
-  );
+  const lot = await lotsRepo.tryRelease(lotId, qty);
   if (!lot) {
     logger.warn(`Release skipped for lot ${lotId}: reserved balance too low`);
     return null;
   }
 
   await recordMovement({
-    lot: lot._id,
+    lot: lot.id,
     type: INVENTORY_MOVEMENT_TYPE.RELEASE,
     quantityKg: qty,
     lotSnapshot: lot,
@@ -158,18 +144,14 @@ async function commitLot({ lotId, quantityKg, orderId = null, actor = null }) {
   const qty = Number(quantityKg);
   if (!(qty > 0)) return null;
 
-  const lot = await InventoryLot.findOneAndUpdate(
-    { _id: lotId, reservedQuantityKg: { $gte: qty } },
-    { $inc: { reservedQuantityKg: -qty, soldQuantityKg: qty } },
-    { new: true },
-  );
+  const lot = await lotsRepo.tryCommit(lotId, qty);
   if (!lot) {
     logger.warn(`Commit skipped for lot ${lotId}: reserved balance too low`);
     return null;
   }
 
   await recordMovement({
-    lot: lot._id,
+    lot: lot.id,
     type: INVENTORY_MOVEMENT_TYPE.COMMIT,
     quantityKg: qty,
     lotSnapshot: lot,
@@ -232,19 +214,17 @@ async function commitOrderItems(items, orderId, actor = null) {
 
 /** Updates the lot status after a listing status change. */
 async function syncLotStatusForListing(listing) {
-  if (!listing || !listing.inventoryLot) return;
-  const lot = await InventoryLot.findById(listing.inventoryLot);
+  if (!listing || !listing.inventoryLotId) return;
+  const lot = await lotsRepo.findById(listing.inventoryLotId);
   if (!lot) return;
   const next = deriveLotStatus(lot, listing.publicationStatus);
   if (lot.lotStatus !== next) {
-    lot.lotStatus = next;
-    await lot.save();
+    await lotsRepo.updateById(lot.id, { lotStatus: next });
   }
-  if (listing.publicationStatus === LISTING_STATUS.PUBLISHED) {
-    await WasteSubmission.updateOne(
-      { _id: lot.sourceSubmission },
-      { $set: { status: 'PURCHASED' } },
-    ).catch(() => {});
+  if (listing.publicationStatus === LISTING_STATUS.PUBLISHED && lot.sourceSubmissionId) {
+    await submissionsRepo
+      .updateById(lot.sourceSubmissionId, { status: 'PURCHASED' })
+      .catch(() => {});
   }
 }
 

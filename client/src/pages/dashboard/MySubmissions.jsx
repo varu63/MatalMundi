@@ -16,7 +16,7 @@ export default function MySubmissions() {
     setLoading(true);
     endpoints.submissions
       .my({ page, limit: 10 })
-      .then((r) => setData(r.data.data))
+      .then((r) => setData({ data: r.data.data, meta: r.data.meta }))
       .catch(() => setData({ data: [], meta: {} }))
       .finally(() => setLoading(false));
   }, [page]);

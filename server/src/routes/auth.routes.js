@@ -19,7 +19,7 @@ router.post('/logout', optionalAuth, controller.logout);
 router.get('/me', protect, controller.me);
 router.post('/forgot-password', authLimiter, validate(authValidator.forgotPasswordSchema), controller.forgotPassword);
 router.post('/reset-password', authLimiter, validate(authValidator.resetPasswordSchema), controller.resetPassword);
-router.post('/verify-email', validate({ token: require('zod').z.string().min(10) }), controller.verifyEmail);
+router.post('/verify-email', validate(authValidator.verifyEmailSchema), controller.verifyEmail);
 router.get('/csrf', getCsrfToken);
 
 module.exports = router;

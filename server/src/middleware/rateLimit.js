@@ -39,4 +39,15 @@ const writeLimiter = rateLimit({
   handler: jsonHandler,
 });
 
-module.exports = { apiLimiter, authLimiter, writeLimiter };
+// Bids are validated server-side anyway; this only stops scripted spam while
+// leaving room for genuine rapid counter-bidding.
+const bidLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: disabledInTest,
+  handler: jsonHandler,
+});
+
+module.exports = { apiLimiter, authLimiter, writeLimiter, bidLimiter };

@@ -1,28 +1,23 @@
 'use strict';
 
-const { AuditLog, User } = require('../../models');
+const { audit: auditRepo } = require('../../repositories');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { paginated } = require('../../utils/apiResponse');
+const { serializeAuditLog } = require('../../utils/serializers');
 const { parsePage } = require('../../utils/numbers');
 
 /** GET /admin/audit-logs */
 const listAuditLogs = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = {};
-  if (req.query.action) filter.action = req.query.action;
-  if (req.query.resourceType) filter.resourceType = req.query.resourceType;
 
-  const [items, total] = await Promise.all([
-    AuditLog.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('actor', 'name email role')
-      .lean(),
-    AuditLog.countDocuments(filter),
-  ]);
+  const { rows, total } = await auditRepo.list({
+    action: req.query.action,
+    resourceType: req.query.resourceType,
+    skip,
+    take: limit,
+  });
 
-  return paginated(res, items, { page, limit, total });
+  return paginated(res, rows.map(serializeAuditLog), { page, limit, total });
 });
 
 module.exports = { listAuditLogs };

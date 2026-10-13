@@ -2,7 +2,7 @@
   "name": "metalmundi",
   "version": "1.0.0",
   "private": true,
-  "description": "MetalMundi - full-stack waste material marketplace (MERN)",
+  "description": "MetalMundi - full-stack waste material marketplace (PERN: Express + PostgreSQL + Prisma + React)",
   "type": "commonjs",
   "scripts": {
     "install:all": "npm install --no-audit --no-fund && npm --prefix server install --no-audit --no-fund && npm --prefix client install --no-audit --no-fund",

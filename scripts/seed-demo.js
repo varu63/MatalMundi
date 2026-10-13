@@ -13,27 +13,18 @@
 
 const path = require('path');
 const fs = require('fs');
-const dotenv = require('dotenv');
+const { createRequire } = require('module');
+// Dependencies live in server/node_modules, not in the repo root.
+const serverRequire = createRequire(path.resolve(__dirname, '../server/package.json'));
+const dotenv = serverRequire('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../server/.env') });
 
-const mongoose = require('mongoose');
-const {
-  User,
-  MaterialCategory,
-  PricingConfiguration,
-  WasteSubmission,
-  InventoryLot,
-  MarketplaceListing,
-} = require('../server/src/models');
-const {
-  ROLES,
-  SUBMISSION_STATUS,
-  LISTING_STATUS,
-} = require('../server/src/utils/constants');
+const env = require('../server/src/config/env');
+const { prisma } = require('../server/src/config/db');
+const { users, categories, pricing, submissions, lots, listings } = require('../server/src/repositories');
+const { ROLES, SUBMISSION_STATUS, LISTING_STATUS } = require('../server/src/utils/constants');
 const { computeValuation } = require('../server/src/services/pricingService');
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/metalmundi';
 const API_PUBLIC_URL = process.env.API_PUBLIC_URL || 'http://localhost:5000';
 
 // 1×1 tiled PNG placeholders so the demo needs no Cloudinary account.
@@ -52,58 +43,54 @@ function writePlaceholder(name) {
 
 async function ensureAdmin() {
   const email = (process.env.ADMIN_EMAIL || 'admin@metalmundi.test').toLowerCase();
-  let admin = await User.findOne({ email });
+  let admin = await users.findByEmail(email);
   if (!admin) {
-    admin = new User({
+    admin = await users.create({
       name: process.env.ADMIN_NAME || 'MetalMundi Admin',
       email,
       phone: '0000000000',
+      password: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
       role: ROLES.ADMIN,
       accountStatus: 'ACTIVE',
-      emailVerification: { verified: true },
+      emailVerificationVerified: true,
     });
-    await admin.setPassword(process.env.ADMIN_PASSWORD || 'ChangeMe123!');
-    await admin.save();
   }
   return admin;
 }
 
 async function ensureUser() {
   const email = 'demo@metalmundi.test';
-  let user = await User.findOne({ email });
+  let user = await users.findByEmail(email);
   if (!user) {
-    user = new User({
+    user = await users.create({
       name: 'Ananya Sharma',
       email,
       phone: '9812345678',
+      password: 'Demo@1234',
       role: ROLES.USER,
       accountStatus: 'ACTIVE',
-      emailVerification: { verified: true },
+      emailVerificationVerified: true,
       address: { line1: 'B-42, Sector 18', city: 'Gurugram', state: 'Haryana', postalCode: '122015' },
     });
-    await user.setPassword('Demo@1234');
-    await user.save();
   }
   return user;
 }
 
 async function seedListing() {
-  const category = await MaterialCategory.findOne({ name: 'Ferrous Scrap' });
+  const category = await categories.findByNameOrSlug('Ferrous Scrap', 'ferrous-scrap');
   if (!category) throw new Error('Run npm run seed:admin first (no Ferrous Scrap category).');
 
-  let listing = await MarketplaceListing.findOne({ materialType: 'MS Scrap' });
+  let listing = await prisma.marketplaceListing.findFirst({ where: { materialType: 'MS Scrap' } });
   if (listing) {
     console.log('✔ Demo listing already exists — skipping.');
     return listing;
   }
 
-  const pricing = await PricingConfiguration.findOne({
-    materialCategory: category._id,
-    active: true,
-  }).sort({ version: -1 });
-  if (!pricing) throw new Error('No pricing configured for Ferrous Scrap.');
+  const pricingConfig = await pricing.getActive(category.id);
+  if (!pricingConfig) throw new Error('No pricing configured for Ferrous Scrap.');
 
   const user = await ensureUser();
+  const admin = await ensureAdmin();
   const pickup = {
     address: 'B-42, Sector 18',
     city: 'Gurugram',
@@ -115,16 +102,16 @@ async function seedListing() {
 
   const quantityKg = 500;
   const valuation = computeValuation({
-    pricingConfig: pricing,
+    pricingConfig,
     quantityKg,
     qualityGrade: 'B',
     pickup,
   });
 
-  const submission = await WasteSubmission.create({
+  const submission = await submissions.create({
     submissionNumber: `WS-${new Date().getFullYear()}-DEMO01`,
-    seller: user._id,
-    materialCategory: category._id,
+    sellerId: user.id,
+    materialCategoryId: category.id,
     materialType: 'MS Scrap',
     quantityKg,
     condition: 'LOOSE',
@@ -145,17 +132,17 @@ async function seedListing() {
     proposedPurchasePricePaise: valuation.estimatedPayoutPaise,
     acceptedQuantityKg: quantityKg,
     status: SUBMISSION_STATUS.COLLECTED,
-    reviewedBy: (await ensureAdmin())._id,
+    reviewedById: admin.id,
     reviewedAt: new Date(),
-    approvedBy: (await ensureAdmin())._id,
+    approvedById: admin.id,
     approvedAt: new Date(),
   });
 
-  const lot = await InventoryLot.create({
+  const lot = await lots.create({
     lotNumber: `LOT-${new Date().getFullYear()}-DEMO01`,
-    sourceSubmission: submission._id,
-    seller: user._id,
-    materialCategory: category._id,
+    sourceSubmissionId: submission.id,
+    sellerId: user.id,
+    materialCategoryId: category.id,
     materialType: 'MS Scrap',
     qualityGrade: 'B',
     condition: 'LOOSE',
@@ -168,13 +155,11 @@ async function seedListing() {
     receivedAt: new Date(),
   });
 
-  submission.inventoryLot = lot._id;
-  submission.status = SUBMISSION_STATUS.PURCHASED;
-  await submission.save();
+  await submissions.updateById(submission.id, { status: SUBMISSION_STATUS.PURCHASED });
 
-  listing = await MarketplaceListing.create({
+  listing = await listings.create({
     title: 'Mild Steel Scrap (MS) — 500 kg',
-    materialCategory: category._id,
+    materialCategoryId: category.id,
     materialType: 'MS Scrap',
     description:
       'Clean mild steel scrap from a recent demolition. Sorted, loose, graded B. Rated at ₹18/kg.',
@@ -184,8 +169,8 @@ async function seedListing() {
       writePlaceholder('left'),
       writePlaceholder('right'),
     ],
-    inventoryLot: lot._id,
-    sourceSubmission: submission._id,
+    inventoryLotId: lot.id,
+    sourceSubmissionId: submission.id,
     qualityGrade: 'B',
     condition: 'LOOSE',
     pricePerKgPaise: 1800,
@@ -205,12 +190,12 @@ async function seedListing() {
 }
 
 async function main() {
-  console.log('Connecting…');
-  await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  console.log('Connecting to PostgreSQL…', env.databaseUrl.replace(/:([^@/]+)@/, ':***@'));
+  await prisma.$connect();
   const listing = await seedListing();
   console.log('✔ Demo listing:', listing.title);
   console.log('✔ Demo user: demo@metalmundi.test / Demo@1234');
-  await mongoose.disconnect();
+  await prisma.$disconnect();
   process.exit(0);
 }
 

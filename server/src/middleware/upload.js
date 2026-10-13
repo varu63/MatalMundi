@@ -5,7 +5,7 @@ const ApiError = require('../utils/ApiError');
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
-const MAX_FILES = 10;
+const MAX_FILES = 16;
 
 const storage = multer.memoryStorage();
 
@@ -21,12 +21,14 @@ const upload = multer({
 });
 
 // Expected multipart fields for a waste submission.
+// `weightEvidence` is required only in auction mode (validated server-side).
 const wasteImageUpload = upload.fields([
   { name: 'front', maxCount: 1 },
   { name: 'back', maxCount: 1 },
   { name: 'left', maxCount: 1 },
   { name: 'right', maxCount: 1 },
-  { name: 'additional', maxCount: MAX_FILES },
+  { name: 'weightEvidence', maxCount: 1 },
+  { name: 'additional', maxCount: 10 },
 ]);
 
 // Optional listing images used when publishing a marketplace listing.

@@ -21,7 +21,11 @@ const env = {
   isProd: process.env.NODE_ENV === 'production',
   isTest: process.env.NODE_ENV === 'test',
   port: parseInt(process.env.PORT || '5000', 10),
-  mongoUri: required('MONGODB_URI', 'mongodb://127.0.0.1:27017/metalmundi'),
+  // Matches the defaults in docker-compose.yml / .env.example (dev only).
+  databaseUrl: required(
+    'DATABASE_URL',
+    'postgresql://admin:adminpassword@localhost:5432/metalmundi',
+  ),
 
   jwtSecret: required('JWT_SECRET', 'dev-only-insecure-jwt-secret-change-me'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',

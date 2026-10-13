@@ -6,6 +6,7 @@ const { requireAdmin } = require('../middleware/auth');
 const { validate, validateObjectId } = require('../middleware/validate');
 const { listingImageUpload } = require('../middleware/upload');
 const ad = require('../validators/adminValidators');
+const av = require('../validators/auctionValidators');
 
 const dashboardController = require('../controllers/admin/dashboardController');
 const submissionController = require('../controllers/admin/submissionController');
@@ -16,6 +17,7 @@ const userController = require('../controllers/admin/userController');
 const pricingController = require('../controllers/admin/pricingController');
 const categoryController = require('../controllers/admin/categoryController');
 const auditController = require('../controllers/admin/auditController');
+const auctionController = require('../controllers/admin/auctionController');
 
 const router = Router();
 router.use(requireAdmin);
@@ -69,6 +71,21 @@ router.get('/pricing', pricingController.listPricing);
 router.post('/pricing', validate(ad.createPricingSchema), pricingController.createPricing);
 router.patch('/pricing/:id', validateObjectId('id'), validate(ad.updatePricingSchema), pricingController.updatePricing);
 router.patch('/pricing/:id/status', validateObjectId('id'), validate({ active: z.coerce.boolean() }), pricingController.togglePricing);
+
+// ── Auction settings ────────────────────────────────────────────────────────
+router.get('/auction-settings', auctionController.getSettings);
+router.patch('/auction-settings', validate(av.updateAuctionSettingsSchema), auctionController.updateSettings);
+
+// ── Auctions ────────────────────────────────────────────────────────────────
+router.get('/auctions', validate(av.adminAuctionListQuerySchema, 'query'), auctionController.listAuctions);
+router.get('/auctions/:id', validateObjectId('id'), auctionController.getAuction);
+router.get('/auctions/:id/bids', validateObjectId('id'), auctionController.getAuctionBids);
+router.patch('/auctions/:id', validateObjectId('id'), validate(av.updateAuctionSchema), auctionController.updateAuction);
+router.post('/auctions/:id/approve', validateObjectId('id'), validate(av.approveAuctionSchema), auctionController.approveAuction);
+router.post('/auctions/:id/reject', validateObjectId('id'), validate(av.rejectAuctionSchema), auctionController.rejectAuction);
+router.post('/auctions/:id/cancel', validateObjectId('id'), validate(av.cancelAuctionSchema), auctionController.cancelAuction);
+router.post('/auctions/:id/payment-received', validateObjectId('id'), validate(av.paymentReceivedSchema), auctionController.paymentReceived);
+router.post('/auctions/:id/complete', validateObjectId('id'), validate(av.completeAuctionSchema), auctionController.completeAuction);
 
 // ── Audit logs ──────────────────────────────────────────────────────────────
 router.get('/audit-logs', auditController.listAuditLogs);

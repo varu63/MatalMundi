@@ -1,9 +1,10 @@
 'use strict';
 
-const mongoose = require('mongoose');
 const ApiError = require('../utils/ApiError');
 
 const SOURCES = ['body', 'query', 'params'];
+// Identifiers are 24-char hex strings (same shape Mongo ObjectIds had).
+const ID_PATTERN = /^[0-9a-fA-F]{24}$/;
 
 /**
  * validate(schema, 'body') -> Express middleware
@@ -20,18 +21,18 @@ function validate(schema, source = 'body') {
         path: issue.path.join('.'),
         message: issue.message,
       }));
-      return next(ApiError.unprocessable('Validation failed', details));
+      return next(ApiError.badRequest('Validation failed', details));
     }
     req[source] = result.data;
     return next();
   };
 }
 
-/** Validates a Mongo ObjectId route param. */
+/** Validates a route param that must be a 24-char hex id. */
 function validateObjectId(paramName = 'id') {
   return function validateId(req, _res, next) {
     const value = req.params[paramName];
-    if (!mongoose.Types.ObjectId.isValid(value)) {
+    if (typeof value !== 'string' || !ID_PATTERN.test(value)) {
       return next(ApiError.badRequest(`Invalid ${paramName}`));
     }
     return next();

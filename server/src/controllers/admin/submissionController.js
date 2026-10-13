@@ -1,13 +1,12 @@
 'use strict';
 
-const {
-  WasteSubmission,
-  InventoryLot,
-  MarketplaceListing,
-} = require('../../models');
+const submissionsRepo = require('../../repositories/submissions');
+const lotsRepo = require('../../repositories/lots');
+const listingsRepo = require('../../repositories/listings');
 const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { ok, paginated } = require('../../utils/apiResponse');
+const { serializeSubmission, serializeLot, serializeListing } = require('../../utils/serializers');
 const { recordAudit } = require('../../services/auditService');
 const { notifySubmission } = require('../../services/notificationService');
 const { storageUploadForListing } = require('./listingHelpers');
@@ -16,17 +15,9 @@ const { parsePage } = require('../../utils/numbers');
 const {
   SUBMISSION_STATUS,
   SUBMISSION_TRANSITIONS,
+  SALE_MODE,
   AUDIT_ACTION,
 } = require('../../utils/constants');
-
-function fullPopulate() {
-  return [
-    { path: 'seller', select: 'name email phone address' },
-    { path: 'materialCategory', select: 'name slug' },
-    { path: 'inventoryLot', select: 'lotNumber acceptedQuantityKg availableQuantityKg reservedQuantityKg soldQuantityKg lotStatus' },
-    { path: 'listing', select: 'title pricePerKgPaise publicationStatus active availableQuantityKg' },
-  ];
-}
 
 function assertTransition(submission, nextStatus, label) {
   const allowed = SUBMISSION_TRANSITIONS[submission.status] || [];
@@ -41,75 +32,69 @@ function moneyToPaise(rupees) {
   return Math.round(Number(rupees) * 100);
 }
 
+function appendNote(row, note, actorId) {
+  const notes = Array.isArray(row.adminNotes) ? row.adminNotes : [];
+  if (!note) return notes;
+  return [...notes, { note, by: actorId, at: new Date() }];
+}
+
 /** GET /admin/waste-submissions */
 const listSubmissions = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = {};
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.category) filter.materialCategory = req.query.category;
-  if (req.query.search) {
-    const term = String(req.query.search).trim();
-    filter.$or = [
-      { submissionNumber: { $regex: term, $options: 'i' } },
-      { materialType: { $regex: term, $options: 'i' } },
-    ];
-  }
-
-  const [items, total] = await Promise.all([
-    WasteSubmission.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('seller', 'name email')
-      .populate('materialCategory', 'name')
-      .lean(),
-    WasteSubmission.countDocuments(filter),
-  ]);
-
-  return paginated(res, items, { page, limit, total });
+  const { rows, total } = await submissionsRepo.list({
+    status: req.query.status,
+    categoryId: req.query.category,
+    search: req.query.search,
+    saleMode: SALE_MODE.NORMAL, // auction submissions are handled in Auction Management
+    skip,
+    take: limit,
+    variant: 'admin',
+  });
+  return paginated(res, rows.map(serializeSubmission), { page, limit, total });
 });
 
 /** GET /admin/waste-submissions/:id */
 const getSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id).populate(fullPopulate());
+  const submission = await submissionsRepo.findById(req.params.id, { variant: 'admin' });
   if (!submission) throw ApiError.notFound('Submission not found');
-  return ok(res, { submission });
+  return ok(res, { submission: serializeSubmission(submission) });
 });
 
 /** PATCH /admin/waste-submissions/:id/review  (under review / schedule pickup / back to queue) */
 const reviewSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id);
+  const submission = await submissionsRepo.findById(req.params.id);
   if (!submission) throw ApiError.notFound('Submission not found');
 
   const nextStatus = req.body.status;
+  const data = {};
   if (nextStatus && nextStatus !== submission.status) {
     assertTransition(submission, nextStatus, 'review');
-    submission.status = nextStatus;
+    data.status = nextStatus;
   }
   if (req.body.note) {
-    submission.adminNotes.push({ note: req.body.note, by: req.user._id, at: new Date() });
+    data.adminNotes = appendNote(submission, req.body.note, req.user.id);
   }
   if (req.body.pickupDate && nextStatus === SUBMISSION_STATUS.PICKUP_SCHEDULED) {
-    submission.pickupDate = req.body.pickupDate;
+    data.pickupDate = req.body.pickupDate;
   }
-  submission.reviewedBy = req.user._id;
-  submission.reviewedAt = new Date();
-  await submission.save();
+  data.reviewedById = req.user.id;
+  data.reviewedAt = new Date();
+  const updated = await submissionsRepo.updateById(submission.id, data);
 
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_REVIEW,
     resourceType: 'WasteSubmission',
-    resourceId: submission._id,
-    after: { status: submission.status },
+    resourceId: submission.id,
+    after: { status: updated.status },
     req,
   });
 
-  return ok(res, { submission }, `Submission moved to ${submission.status}`);
+  return ok(res, { submission: serializeSubmission(updated) }, `Submission moved to ${updated.status}`);
 });
 
 /** POST /admin/waste-submissions/:id/approve */
 const approveSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id);
+  const submission = await submissionsRepo.findById(req.params.id);
   if (!submission) throw ApiError.notFound('Submission not found');
 
   assertTransition(submission, SUBMISSION_STATUS.APPROVED, 'approve');
@@ -119,71 +104,72 @@ const approveSubmission = asyncHandler(async (req, res) => {
   if (req.body.proposedPricePerKg !== undefined && req.body.proposedPricePerKg !== null) {
     proposedPaise = moneyToPaise(req.body.proposedPricePerKg * submission.quantityKg);
   } else {
-    proposedPaise = Math.max(0, submission.valuation.estimatedPayoutPaise || 0);
+    proposedPaise = Math.max(0, (submission.valuation && submission.valuation.estimatedPayoutPaise) || 0);
   }
-  submission.proposedPurchasePricePaise = proposedPaise;
-  submission.proposedPurchasePriceSetBy = req.user._id;
-  submission.proposedPurchasePriceSetAt = new Date();
-  submission.status = SUBMISSION_STATUS.APPROVED;
-  submission.approvedBy = req.user._id;
-  submission.approvedAt = new Date();
-  submission.reviewedBy = req.user._id;
-  submission.reviewedAt = new Date();
-  if (req.body.note) {
-    submission.adminNotes.push({ note: req.body.note, by: req.user._id, at: new Date() });
-  }
-  await submission.save();
+
+  const updated = await submissionsRepo.updateById(submission.id, {
+    proposedPurchasePricePaise: proposedPaise,
+    proposedPurchasePriceSetById: req.user.id,
+    proposedPurchasePriceSetAt: new Date(),
+    status: SUBMISSION_STATUS.APPROVED,
+    approvedById: req.user.id,
+    approvedAt: new Date(),
+    reviewedById: req.user.id,
+    reviewedAt: new Date(),
+    adminNotes: appendNote(submission, req.body.note, req.user.id),
+  });
 
   await notifySubmission(
-    submission.seller,
+    submission.sellerId,
     'Submission approved',
     `Your submission ${submission.submissionNumber} was approved. We will arrange pickup of ${submission.quantityKg} kg of ${submission.materialType}.`,
-    submission._id,
+    submission.id,
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_APPROVE,
     resourceType: 'WasteSubmission',
-    resourceId: submission._id,
-    after: { status: submission.status, proposedPurchasePricePaise: proposedPaise },
+    resourceId: submission.id,
+    after: { status: updated.status, proposedPurchasePricePaise: proposedPaise },
     req,
   });
 
-  return ok(res, { submission }, 'Submission approved');
+  return ok(res, { submission: serializeSubmission(updated) }, 'Submission approved');
 });
 
 /** POST /admin/waste-submissions/:id/reject */
 const rejectSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id);
+  const submission = await submissionsRepo.findById(req.params.id);
   if (!submission) throw ApiError.notFound('Submission not found');
 
   assertTransition(submission, SUBMISSION_STATUS.REJECTED, 'reject');
 
-  submission.status = SUBMISSION_STATUS.REJECTED;
-  submission.rejectionReason = req.body.reason;
-  submission.reviewedBy = req.user._id;
-  submission.reviewedAt = new Date();
-  await submission.save();
+  const updated = await submissionsRepo.updateById(submission.id, {
+    status: SUBMISSION_STATUS.REJECTED,
+    rejectionReason: req.body.reason,
+    reviewedById: req.user.id,
+    reviewedAt: new Date(),
+  });
 
   await notifySubmission(
-    submission.seller,
+    submission.sellerId,
     'Submission rejected',
     `Your submission ${submission.submissionNumber} was rejected. Reason: ${req.body.reason}`,
-    submission._id,
+    submission.id,
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_REJECT,
     resourceType: 'WasteSubmission',
-    resourceId: submission._id,
-    after: { status: submission.status, reason: req.body.reason },
+    resourceId: submission.id,
+    after: { status: updated.status, reason: req.body.reason },
     req,
   });
 
-  return ok(res, { submission }, 'Submission rejected');
+  return ok(res, { submission: serializeSubmission(updated) }, 'Submission rejected');
 });
 
 /** POST /admin/waste-submissions/:id/collect */
 const collectSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id);
+  const submission = await submissionsRepo.findById(req.params.id);
   if (!submission) throw ApiError.notFound('Submission not found');
 
   assertTransition(submission, SUBMISSION_STATUS.COLLECTED, 'collect');
@@ -191,47 +177,41 @@ const collectSubmission = asyncHandler(async (req, res) => {
   const acceptedKg = Number(req.body.acceptedQuantityKg);
   if (!(acceptedKg >= 100)) throw ApiError.badRequest('Accepted quantity must be at least 100 kg');
 
-  submission.acceptedQuantityKg = acceptedKg;
-  submission.status = SUBMISSION_STATUS.COLLECTED;
-  submission.collectedBy = req.user._id;
-  submission.collectedAt = new Date();
-  if (req.body.note) {
-    submission.adminNotes.push({ note: req.body.note, by: req.user._id, at: new Date() });
+  // Create the inventory lot exactly once.
+  let lot = await lotsRepo.findBySourceSubmission(submission.id);
+  if (!lot) {
+    lot = await createLotFromSubmission({ submission, actor: req.user.id });
+  } else if (lot.reservedQuantityKg === 0 && lot.soldQuantityKg === 0) {
+    // Refreshing a re-collect (only safe while nothing has been touched).
+    lot = await lotsRepo.updateById(lot.id, {
+      acceptedQuantityKg: acceptedKg,
+      availableQuantityKg: acceptedKg,
+    });
   }
 
-  // Create the inventory lot exactly once.
-  let lot = null;
-  if (submission.inventoryLot) {
-    lot = await InventoryLot.findById(submission.inventoryLot);
-  }
-  if (!lot) {
-    lot = await createLotFromSubmission({ submission, actor: req.user._id });
-    submission.inventoryLot = lot._id;
-  } else {
-    // Refreshing a re-collect (only safe while nothing has been touched).
-    if (lot.reservedQuantityKg === 0 && lot.soldQuantityKg === 0) {
-      lot.acceptedQuantityKg = acceptedKg;
-      lot.availableQuantityKg = acceptedKg;
-      await lot.save();
-    }
-  }
-  await submission.save();
+  const updated = await submissionsRepo.updateById(submission.id, {
+    acceptedQuantityKg: acceptedKg,
+    status: SUBMISSION_STATUS.COLLECTED,
+    collectedById: req.user.id,
+    collectedAt: new Date(),
+    adminNotes: appendNote(submission, req.body.note, req.user.id),
+  });
 
   await notifySubmission(
-    submission.seller,
+    submission.sellerId,
     'Material collected',
     `Your ${submission.quantityKg} kg of ${submission.materialType} was received. Accepted quantity: ${acceptedKg} kg.`,
-    submission._id,
+    submission.id,
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_COLLECT,
     resourceType: 'WasteSubmission',
-    resourceId: submission._id,
-    after: { status: submission.status, acceptedQuantityKg: acceptedKg, lotId: lot._id },
+    resourceId: submission.id,
+    after: { status: updated.status, acceptedQuantityKg: acceptedKg, lotId: lot.id },
     req,
   });
 
-  return ok(res, { submission, lot }, 'Material collected and stocked');
+  return ok(res, { submission: serializeSubmission(updated), lot: serializeLot(lot) }, 'Material collected and stocked');
 });
 
 /**
@@ -240,35 +220,33 @@ const collectSubmission = asyncHandler(async (req, res) => {
  * listed. Uses the admin's listing images when supplied, else the submission's.
  */
 const publishSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id).populate('materialCategory');
+  const submission = await submissionsRepo.findById(req.params.id);
   if (!submission) throw ApiError.notFound('Submission not found');
 
   if (submission.status !== SUBMISSION_STATUS.COLLECTED) {
     throw ApiError.conflict('Only collected materials can be published to the marketplace');
   }
-  if (submission.listing) {
+  const existingListing = await listingsRepo.findBySourceSubmission(submission.id);
+  if (existingListing) {
     throw ApiError.conflict('This submission already has a listing. Use listing management to edit it.');
   }
-  if (!submission.inventoryLot) {
-    throw ApiError.conflict('No inventory lot exists. Collect the material first.');
-  }
 
-  const lot = await InventoryLot.findById(submission.inventoryLot);
-  if (!lot) throw ApiError.conflict('Inventory lot not found');
+  const lot = await lotsRepo.findBySourceSubmission(submission.id);
+  if (!lot) throw ApiError.conflict('No inventory lot exists. Collect the material first.');
   if (lot.availableQuantityKg <= 0) {
     throw ApiError.conflict('This lot has no sellable stock');
   }
 
   const images = await storageUploadForListing(req, submission);
 
-  const listing = await MarketplaceListing.create({
+  const listing = await listingsRepo.create({
     title: req.body.title,
-    materialCategory: submission.materialCategory,
+    materialCategoryId: submission.materialCategoryId,
     materialType: submission.materialType,
     description: req.body.description,
     images,
-    inventoryLot: lot._id,
-    sourceSubmission: submission._id,
+    inventoryLotId: lot.id,
+    sourceSubmissionId: submission.id,
     qualityGrade: req.body.qualityGrade || submission.qualityGrade,
     condition: req.body.condition || submission.condition,
     pricePerKgPaise: moneyToPaise(req.body.pricePerKg),
@@ -281,31 +259,37 @@ const publishSubmission = asyncHandler(async (req, res) => {
     deliveryTerms: req.body.deliveryTerms || 'Pickup from MetalMundi facility',
     publicationStatus: 'PUBLISHED',
     active: true,
-    publishedBy: req.user._id,
+    publishedById: req.user.id,
     publishedAt: new Date(),
   });
 
   await syncLotStatusForListing(listing);
 
-  submission.listing = listing._id;
-  submission.status = SUBMISSION_STATUS.PURCHASED;
-  await submission.save();
+  const updated = await submissionsRepo.updateById(submission.id, {
+    status: SUBMISSION_STATUS.PURCHASED,
+  });
+  // Re-fetch with the lot/listing relations so the response carries their ids.
+  const fresh = (await submissionsRepo.findById(submission.id)) || updated;
 
   await notifySubmission(
-    submission.seller,
+    submission.sellerId,
     'Listed on marketplace',
     `Your material is now listed on the marketplace as "${listing.title}".`,
-    submission._id,
+    submission.id,
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_PUBLISH,
     resourceType: 'WasteSubmission',
-    resourceId: submission._id,
-    after: { listingId: listing._id, title: listing.title, pricePerKgPaise: listing.pricePerKgPaise },
+    resourceId: submission.id,
+    after: { listingId: listing.id, title: listing.title, pricePerKgPaise: listing.pricePerKgPaise },
     req,
   });
 
-  return ok(res, { submission, listing }, 'Listing published to marketplace');
+  return ok(
+    res,
+    { submission: serializeSubmission(fresh), listing: serializeListing(listing) },
+    'Listing published to marketplace',
+  );
 });
 
 module.exports = {

@@ -1,9 +1,10 @@
 'use strict';
 
-const { Order } = require('../../models');
+const ordersRepo = require('../../repositories/orders');
 const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { ok, paginated } = require('../../utils/apiResponse');
+const { serializeOrder } = require('../../utils/serializers');
 const { notifyOrder } = require('../../services/notificationService');
 const { recordAudit } = require('../../services/auditService');
 const {
@@ -29,34 +30,21 @@ const STATUS_LABELS = {
 /** GET /admin/orders */
 const listOrders = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = {};
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.search) {
-    const term = String(req.query.search).trim();
-    filter.$or = [{ orderNumber: { $regex: term, $options: 'i' } }];
-  }
-
-  const [items, total] = await Promise.all([
-    Order.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('buyer', 'name email phone')
-      .lean(),
-    Order.countDocuments(filter),
-  ]);
-
-  return paginated(res, items, { page, limit, total });
+  const { rows, total } = await ordersRepo.list({
+    status: req.query.status,
+    search: req.query.search,
+    skip,
+    take: limit,
+    populateBuyer: true,
+  });
+  return paginated(res, rows.map(serializeOrder), { page, limit, total });
 });
 
 /** GET /admin/orders/:id */
 const getOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id)
-    .populate('buyer', 'name email phone address')
-    .populate('items.listing', 'title materialType qualityGrade condition pricePerKgPaise active publicationStatus')
-    .populate('items.inventoryLot', 'lotNumber lotStatus');
+  const order = await ordersRepo.findDetail(req.params.id, { buyerFull: true });
   if (!order) return ok(res, { order: null });
-  return ok(res, { order });
+  return ok(res, { order: serializeOrder(order) });
 });
 
 /**
@@ -67,8 +55,13 @@ const getOrder = asyncHandler(async (req, res) => {
  *  DELIVERED  -> commit reservation to sold stock (once)
  */
 const updateStatus = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id);
+  const order = await ordersRepo.findById(req.params.id);
   if (!order) throw ApiError.notFound('Order not found');
+
+  // Auction orders follow the auction payment/pickup workflow instead.
+  if (order.auctionId) {
+    throw ApiError.conflict('This order was created by an auction. Manage it from Auction Management.');
+  }
 
   const next = req.body.status;
   const allowed = ORDER_TRANSITIONS[order.status] || [];
@@ -76,14 +69,17 @@ const updateStatus = asyncHandler(async (req, res) => {
     throw ApiError.conflict(`Cannot change order from ${order.status} to ${next}`);
   }
 
-  const actor = req.user._id;
+  const actor = req.user.id;
   const previousStatus = order.status;
+  const data = { status: next };
+  let inventoryReserved = order.inventoryReserved;
+  let inventoryCommitted = order.inventoryCommitted;
 
   // 1. ACCEPTED — reserve inventory now.
-  if (next === ORDER_STATUS.ACCEPTED && !order.inventoryReserved) {
+  if (next === ORDER_STATUS.ACCEPTED && !inventoryReserved) {
     try {
-      await reserveOrderItems(order.items, order._id, actor);
-      order.inventoryReserved = true;
+      await reserveOrderItems(order.items, order.id, actor);
+      inventoryReserved = true;
     } catch (err) {
       throw ApiError.conflict(`Could not reserve stock: ${err.message}`);
     }
@@ -91,48 +87,50 @@ const updateStatus = asyncHandler(async (req, res) => {
 
   // 2. REJECTED / CANCELLED — release the reservation exactly once.
   if ((next === ORDER_STATUS.REJECTED || next === ORDER_STATUS.CANCELLED)
-      && order.inventoryReserved && !order.inventoryCommitted) {
-    await releaseOrderItems(order.items, order._id, actor, `Order ${next}: reservation released`);
-    order.inventoryReserved = false;
+      && inventoryReserved && !inventoryCommitted) {
+    await releaseOrderItems(order.items, order.id, actor, `Order ${next}: reservation released`);
+    inventoryReserved = false;
   }
 
   // 3. DELIVERED — commit reservation to sold stock exactly once.
   if (next === ORDER_STATUS.DELIVERED) {
-    if (order.inventoryReserved && !order.inventoryCommitted) {
-      await commitOrderItems(order.items, order._id, actor);
-      order.inventoryCommitted = true;
-      order.inventoryReserved = false;
+    if (inventoryReserved && !inventoryCommitted) {
+      await commitOrderItems(order.items, order.id, actor);
+      inventoryCommitted = true;
+      inventoryReserved = false;
     }
-    if (order.payment.status === 'UNPAID') order.payment.status = 'PAID';
+    if (order.paymentStatus === 'UNPAID') data.paymentStatus = 'PAID';
   }
 
-  if (next === ORDER_STATUS.REJECTED && req.body.reason) {
-    order.rejectionReason = req.body.reason;
-  }
-  if (req.body.reason && next === ORDER_STATUS.CANCELLED) {
-    order.rejectionReason = req.body.reason;
+  if ((next === ORDER_STATUS.REJECTED || next === ORDER_STATUS.CANCELLED) && req.body.reason) {
+    data.rejectionReason = req.body.reason;
   }
 
-  order.status = next;
-  order.statusHistory.push({ status: next, at: new Date(), by: actor, note: req.body.reason || '' });
-  await order.save();
+  data.inventoryReserved = inventoryReserved;
+  data.inventoryCommitted = inventoryCommitted;
+  data.statusHistory = [
+    ...(Array.isArray(order.statusHistory) ? order.statusHistory : []),
+    { status: next, at: new Date(), by: actor, note: req.body.reason || '' },
+  ];
+
+  const updated = await ordersRepo.updateById(order.id, data);
 
   await notifyOrder(
-    order.buyer,
+    order.buyerId,
     `Order ${STATUS_LABELS[next] || next}`,
     `Your order ${order.orderNumber} is now ${STATUS_LABELS[next] || next}.${req.body.reason ? ` ${req.body.reason}` : ''}`,
-    order._id,
+    order.id,
   );
   await recordAudit({
     action: AUDIT_ACTION.ORDER_STATUS,
     resourceType: 'Order',
-    resourceId: order._id,
+    resourceId: order.id,
     before: { status: previousStatus },
-    after: { status: next, inventoryReserved: order.inventoryReserved, inventoryCommitted: order.inventoryCommitted },
+    after: { status: next, inventoryReserved: updated.inventoryReserved, inventoryCommitted: updated.inventoryCommitted },
     req,
   });
 
-  return ok(res, { order }, `Order moved to ${next}`);
+  return ok(res, { order: serializeOrder(updated) }, `Order moved to ${next}`);
 });
 
 module.exports = { listOrders, getOrder, updateStatus };

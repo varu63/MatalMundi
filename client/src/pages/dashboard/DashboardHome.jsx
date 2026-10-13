@@ -17,8 +17,8 @@ export default function DashboardHome() {
       endpoints.orders.my({ limit: 4 }),
     ])
       .then(([s, o]) => {
-        setSubs(s.data.data.data || []);
-        setOrders(o.data.data.data || []);
+        setSubs(s.data.data || []);
+        setOrders(o.data.data || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

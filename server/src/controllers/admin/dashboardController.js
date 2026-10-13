@@ -1,8 +1,15 @@
 'use strict';
 
-const { User, WasteSubmission, MarketplaceListing, Order, InventoryLot } = require('../../models');
+const {
+  users: usersRepo,
+  submissions: submissionsRepo,
+  listings: listingsRepo,
+  orders: ordersRepo,
+  lots: lotsRepo,
+} = require('../../repositories');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { ok } = require('../../utils/apiResponse');
+const { serializeSubmission, serializeOrder } = require('../../utils/serializers');
 const { ORDER_STATUS, ROLES, LISTING_STATUS } = require('../../utils/constants');
 
 /** GET /admin/dashboard — all figures come from live aggregation. */
@@ -24,48 +31,22 @@ const getDashboard = asyncHandler(async (_req, res) => {
     pendingOrders,
     acceptedOrders,
     completedDeliveries,
-    inventoryAgg,
+    inventory,
     recentSubmissions,
     recentOrders,
   ] = await Promise.all([
-    User.countDocuments({ role: ROLES.USER }),
-    WasteSubmission.countDocuments({ status: 'PENDING_APPROVAL' }),
-    WasteSubmission.countDocuments({ status: 'UNDER_REVIEW' }),
-    WasteSubmission.countDocuments({ status: 'APPROVED' }),
-    MarketplaceListing.countDocuments({ active: true, publicationStatus: LISTING_STATUS.PUBLISHED }),
-    Order.countDocuments({ status: ORDER_STATUS.PENDING_ADMIN_APPROVAL }),
-    Order.countDocuments({ status: { $in: activeOrderStatuses } }),
-    Order.countDocuments({ status: ORDER_STATUS.DELIVERED }),
-    InventoryLot.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalCollectedKg: { $sum: '$acceptedQuantityKg' },
-          activeInventoryKg: { $sum: '$availableQuantityKg' },
-          reservedKg: { $sum: '$reservedQuantityKg' },
-          totalSoldKg: { $sum: '$soldQuantityKg' },
-        },
-      },
-    ]),
-    WasteSubmission.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('seller', 'name')
-      .populate('materialCategory', 'name')
-      .lean(),
-    Order.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('buyer', 'name')
-      .lean(),
+    usersRepo.count({ role: ROLES.USER }),
+    submissionsRepo.count({ status: 'PENDING_APPROVAL' }),
+    submissionsRepo.count({ status: 'UNDER_REVIEW' }),
+    submissionsRepo.count({ status: 'APPROVED' }),
+    listingsRepo.count({ active: true, publicationStatus: LISTING_STATUS.PUBLISHED }),
+    ordersRepo.count({ status: ORDER_STATUS.PENDING_ADMIN_APPROVAL }),
+    ordersRepo.count({ status: { in: activeOrderStatuses } }),
+    ordersRepo.count({ status: ORDER_STATUS.DELIVERED }),
+    lotsRepo.aggregateTotals(),
+    submissionsRepo.findRecent(5),
+    ordersRepo.findRecent(5),
   ]);
-
-  const inventory = inventoryAgg[0] || {
-    totalCollectedKg: 0,
-    activeInventoryKg: 0,
-    reservedKg: 0,
-    totalSoldKg: 0,
-  };
 
   return ok(res, {
     stats: {
@@ -82,8 +63,8 @@ const getDashboard = asyncHandler(async (_req, res) => {
       reservedKg: inventory.reservedKg,
       totalSoldKg: inventory.totalSoldKg,
     },
-    recentSubmissions,
-    recentOrders,
+    recentSubmissions: recentSubmissions.map(serializeSubmission),
+    recentOrders: recentOrders.map(serializeOrder),
   });
 });
 

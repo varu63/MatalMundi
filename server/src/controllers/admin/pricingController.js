@@ -1,9 +1,10 @@
 'use strict';
 
-const { PricingConfiguration, MaterialCategory } = require('../../models');
+const { pricing: pricingRepo, categories: categoriesRepo } = require('../../repositories');
 const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { ok, created, paginated } = require('../../utils/apiResponse');
+const { serializePricing } = require('../../utils/serializers');
 const { recordAudit } = require('../../services/auditService');
 const { parsePage } = require('../../utils/numbers');
 const { AUDIT_ACTION } = require('../../utils/constants');
@@ -12,119 +13,95 @@ function moneyToPaise(rupees) {
   return Math.round(Number(rupees) * 100);
 }
 
-function toDB(admin, body) {
-  return {
-    materialCategory: body.materialCategory,
-    materialType: body.materialType || '',
-    ratePerKgPaise: moneyToPaise(body.ratePerKg),
-    qualityMultipliers: body.qualityMultipliers,
-    basePickupChargePaise: moneyToPaise(body.basePickupCharge),
-    perKmChargePaise: moneyToPaise(body.perKmCharge),
-    platformFeePercent: body.platformFeePercent,
-    taxPercent: body.taxPercent,
-    notes: body.notes || '',
-    updatedBy: admin,
-  };
-}
-
-async function deactivateSameKey(category, materialType, exceptId = null) {
-  const filter = { materialCategory: category, materialType: materialType || '', active: true };
-  if (exceptId) filter._id = { $ne: exceptId };
-  await PricingConfiguration.updateMany(filter, { $set: { active: false } });
-}
-
 /** GET /admin/pricing */
 const listPricing = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = {};
-  if (req.query.active === 'true') filter.active = true;
-  if (req.query.active === 'false') filter.active = false;
+  let active;
+  if (req.query.active === 'true') active = true;
+  if (req.query.active === 'false') active = false;
 
-  const [items, total] = await Promise.all([
-    PricingConfiguration.find(filter)
-      .sort({ updatedAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('materialCategory', 'name slug')
-      .populate('updatedBy', 'name')
-      .lean(),
-    PricingConfiguration.countDocuments(filter),
-  ]);
-
-  return paginated(res, items, { page, limit, total });
+  const { rows, total } = await pricingRepo.list({ active, skip, take: limit });
+  return paginated(res, rows.map(serializePricing), { page, limit, total });
 });
 
 /** POST /admin/pricing — create a new version of a pricing rule. */
 const createPricing = asyncHandler(async (req, res) => {
-  const category = await MaterialCategory.findById(req.body.materialCategory);
+  const category = await categoriesRepo.findById(req.body.materialCategory);
   if (!category) throw ApiError.badRequest('Invalid material category');
 
-  await deactivateSameKey(category._id, req.body.materialType || '');
+  const materialType = req.body.materialType || '';
+  await pricingRepo.deactivateSameKey(category.id, materialType);
 
-  const maxVersion = await PricingConfiguration.findOne({
-    materialCategory: category._id,
-    materialType: req.body.materialType || '',
-  }).sort({ version: -1 }).select('version').lean();
+  const latest = await pricingRepo.maxVersion(category.id, materialType);
 
-  const config = await PricingConfiguration.create({
-    ...toDB(req.user._id, req.body),
-    version: (maxVersion?.version || 0) + 1,
+  const config = await pricingRepo.create({
+    materialCategoryId: category.id,
+    materialType,
+    ratePerKgPaise: moneyToPaise(req.body.ratePerKg),
+    qualityMultipliers: req.body.qualityMultipliers,
+    basePickupChargePaise: moneyToPaise(req.body.basePickupCharge),
+    perKmChargePaise: moneyToPaise(req.body.perKmCharge),
+    platformFeePercent: req.body.platformFeePercent,
+    taxPercent: req.body.taxPercent,
+    notes: req.body.notes || '',
+    updatedById: req.user.id,
+    version: (latest?.version || 0) + 1,
     active: true,
   });
 
   await recordAudit({
     action: AUDIT_ACTION.PRICING_CREATE,
     resourceType: 'PricingConfiguration',
-    resourceId: config._id,
+    resourceId: config.id,
     after: { category: category.slug, materialType: config.materialType, version: config.version },
     req,
   });
 
-  return created(res, { config }, 'Pricing rule created');
+  return created(res, { config: serializePricing(config) }, 'Pricing rule created');
 });
 
 /** PATCH /admin/pricing/:id */
 const updatePricing = asyncHandler(async (req, res) => {
-  const config = await PricingConfiguration.findById(req.params.id);
+  const config = await pricingRepo.findById(req.params.id);
   if (!config) throw ApiError.notFound('Pricing rule not found');
 
   // Editing a rule always supersedes other active rules for the same key.
-  await deactivateSameKey(config.materialCategory, config.materialType, config._id);
+  await pricingRepo.deactivateSameKey(config.materialCategoryId, config.materialType, config.id);
 
-  if (req.body.materialType !== undefined) config.materialType = req.body.materialType;
-  if (req.body.ratePerKg !== undefined) config.ratePerKgPaise = moneyToPaise(req.body.ratePerKg);
+  const data = { active: true, updatedById: req.user.id };
+  if (req.body.materialType !== undefined) data.materialType = req.body.materialType;
+  if (req.body.ratePerKg !== undefined) data.ratePerKgPaise = moneyToPaise(req.body.ratePerKg);
   if (req.body.qualityMultipliers) {
-    config.qualityMultipliers = { ...config.qualityMultipliers.toObject?.() ?? config.qualityMultipliers, ...req.body.qualityMultipliers };
+    data.qualityMultipliers = { ...(config.qualityMultipliers || {}), ...req.body.qualityMultipliers };
   }
-  if (req.body.basePickupCharge !== undefined) config.basePickupChargePaise = moneyToPaise(req.body.basePickupCharge);
-  if (req.body.perKmCharge !== undefined) config.perKmChargePaise = moneyToPaise(req.body.perKmCharge);
-  if (req.body.platformFeePercent !== undefined) config.platformFeePercent = req.body.platformFeePercent;
-  if (req.body.taxPercent !== undefined) config.taxPercent = req.body.taxPercent;
-  if (req.body.notes !== undefined) config.notes = req.body.notes;
-  config.active = true;
-  config.updatedBy = req.user._id;
-  await config.save();
+  if (req.body.basePickupCharge !== undefined) data.basePickupChargePaise = moneyToPaise(req.body.basePickupCharge);
+  if (req.body.perKmCharge !== undefined) data.perKmChargePaise = moneyToPaise(req.body.perKmCharge);
+  if (req.body.platformFeePercent !== undefined) data.platformFeePercent = req.body.platformFeePercent;
+  if (req.body.taxPercent !== undefined) data.taxPercent = req.body.taxPercent;
+  if (req.body.notes !== undefined) data.notes = req.body.notes;
+
+  const updated = await pricingRepo.updateById(config.id, data);
 
   await recordAudit({
     action: AUDIT_ACTION.PRICING_UPDATE,
     resourceType: 'PricingConfiguration',
-    resourceId: config._id,
-    after: { version: config.version, materialType: config.materialType },
+    resourceId: updated.id,
+    after: { version: updated.version, materialType: updated.materialType },
     req,
   });
 
-  return ok(res, { config }, 'Pricing rule updated');
+  return ok(res, { config: serializePricing(updated) }, 'Pricing rule updated');
 });
 
 /** PATCH /admin/pricing/:id/status — activate / deactivate. */
 const togglePricing = asyncHandler(async (req, res) => {
-  const config = await PricingConfiguration.findById(req.params.id);
+  const config = await pricingRepo.findById(req.params.id);
   if (!config) throw ApiError.notFound('Pricing rule not found');
 
   const active = Boolean(req.body.active);
-  config.active = active;
-  await config.save();
-  return ok(res, { config }, `Pricing rule ${active ? 'activated' : 'deactivated'}`);
+  const updated = await pricingRepo.updateById(config.id, { active });
+
+  return ok(res, { config: serializePricing(updated) }, `Pricing rule ${active ? 'activated' : 'deactivated'}`);
 });
 
 module.exports = { listPricing, createPricing, updatePricing, togglePricing };

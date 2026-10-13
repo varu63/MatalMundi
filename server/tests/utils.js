@@ -1,15 +1,15 @@
 'use strict';
 
 const {
-  User,
-  MaterialCategory,
-  PricingConfiguration,
-  WasteSubmission,
-  InventoryLot,
-  MarketplaceListing,
-  Order,
-  InventoryMovement,
-} = require('../src/models');
+  users,
+  categories,
+  pricing,
+  submissions,
+  lots,
+  listings,
+  movements,
+  orders,
+} = require('../src/repositories');
 
 const MINI_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -17,18 +17,16 @@ const MINI_PNG = Buffer.from(
 );
 
 async function createUser(overrides = {}, role = 'USER') {
-  const user = new User({
+  return users.create({
     name: 'Test User',
     email: `user-${Date.now()}-${Math.floor(Math.random() * 100000)}@test.dev`,
     phone: '9876543210',
+    password: 'Password123',
     role,
     accountStatus: 'ACTIVE',
-    emailVerification: { verified: true },
+    emailVerificationVerified: true,
     ...overrides,
   });
-  await user.setPassword('Password123');
-  await user.save();
-  return user;
 }
 
 async function createAdmin(overrides = {}) {
@@ -36,9 +34,8 @@ async function createAdmin(overrides = {}) {
 }
 
 async function createCategory(name = 'Ferrous Scrap') {
-  return MaterialCategory.create({
+  return categories.create({
     name: `${name} ${Date.now()}`,
-    slug: `ferrous-${Date.now()}`,
     description: 'test category',
     icon: 'recycle',
     active: true,
@@ -46,8 +43,8 @@ async function createCategory(name = 'Ferrous Scrap') {
 }
 
 async function createPricing(category, overrides = {}) {
-  return PricingConfiguration.create({
-    materialCategory: category._id,
+  return pricing.create({
+    materialCategoryId: category.id,
     materialType: 'MS Scrap',
     ratePerKgPaise: 1800, // ₹18/kg
     qualityMultipliers: { A: 1.1, B: 1.0, C: 0.9, D: 0.75 },
@@ -81,12 +78,15 @@ const VALID_SUBMISSION = {
   comments: 'Pickup after 5pm preferred',
 };
 
-async function attachImages(req) {
+async function attachImages(req, { weightEvidence = false } = {}) {
   for (const side of ['front', 'back', 'left', 'right']) {
     // Chain attach calls synchronously; awaiting each intermediates breaks
     // superagent's multipart body build.
     // eslint-disable-next-line no-await-in-loop
     req = req.attach(side, MINI_PNG, `${side}.png`);
+  }
+  if (weightEvidence) {
+    req = req.attach('weightEvidence', MINI_PNG, 'weightEvidence.png');
   }
   return req;
 }
@@ -113,7 +113,7 @@ async function submitWaste(cookieOrAgent, overrides = {}) {
 
   const category = await createCategory();
   await createPricing(category);
-  const data = { ...VALID_SUBMISSION, materialCategory: category._id, ...overrides };
+  const data = { ...VALID_SUBMISSION, materialCategory: category.id, ...overrides };
 
   let req = request(app).post('/api/v1/waste-submissions').set('Cookie', cookie);
   for (const [k, v] of Object.entries(data)) {
@@ -124,12 +124,12 @@ async function submitWaste(cookieOrAgent, overrides = {}) {
     } else if (v === null || v === undefined) {
       // skip
     } else if (typeof v === 'object') {
-      req = req.field(k, typeof v.toHexString === 'function' ? String(v) : JSON.stringify(v));
+      req = req.field(k, JSON.stringify(v));
     } else {
       req = req.field(k, String(v));
     }
   }
-  req = await attachImages(req);
+  req = await attachImages(req, { weightEvidence: data.saleMode === 'AUCTION' });
   return req;
 }
 
@@ -138,17 +138,21 @@ async function submitWaste(cookieOrAgent, overrides = {}) {
  * { submission, lot, listing(if published) }.
  */
 async function pipelineToCollected(submission, admin) {
-  submission.status = 'APPROVED';
-  submission.approvedBy = admin._id;
-  submission.approvedAt = new Date();
-  submission.proposedPurchasePricePaise = Math.max(0, submission.valuation.estimatedPayoutPaise);
-  await submission.save();
+  const submissionId = submission.id || submission._id;
 
-  const lot = await InventoryLot.create({
+  await submissions.updateById(submissionId, {
+    status: 'APPROVED',
+    approvedById: admin.id || admin._id,
+    approvedAt: new Date(),
+    proposedPurchasePricePaise: Math.max(0, submission.valuation?.estimatedPayoutPaise || 0),
+  });
+
+  const lot = await lots.create({
     lotNumber: `LOT-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    sourceSubmission: submission._id,
-    seller: submission.seller,
-    materialCategory: submission.materialCategory,
+    sourceSubmissionId: submissionId,
+    sellerId: submission.sellerId || submission.seller?._id || submission.seller,
+    materialCategoryId:
+      submission.materialCategoryId || submission.materialCategory?._id || submission.materialCategory,
     materialType: submission.materialType,
     qualityGrade: submission.qualityGrade,
     condition: submission.condition,
@@ -156,22 +160,23 @@ async function pipelineToCollected(submission, admin) {
     availableQuantityKg: submission.quantityKg,
     reservedQuantityKg: 0,
     soldQuantityKg: 0,
-    location: { city: submission.pickup.city, state: submission.pickup.state },
+    location: { city: submission.pickup?.city, state: submission.pickup?.state },
     lotStatus: 'ACCEPTED',
   });
 
-  submission.inventoryLot = lot._id;
-  submission.status = 'COLLECTED';
-  submission.acceptedQuantityKg = submission.quantityKg;
-  submission.collectedAt = new Date();
-  await submission.save();
+  await submissions.updateById(submissionId, {
+    status: 'COLLECTED',
+    acceptedQuantityKg: submission.quantityKg,
+    collectedAt: new Date(),
+  });
 
   return { submission, lot };
 }
 
 async function createPublishedListing({ submission, lot, agent, admin, overrides = {} }) {
+  const submissionId = submission.id || submission._id;
   const res = await agent
-    .post(`/api/v1/admin/waste-submissions/${submission._id}/publish`)
+    .post(`/api/v1/admin/waste-submissions/${submissionId}/publish`)
     .field('title', overrides.title || 'Mild Steel Scrap 100 kg')
     .field('description', overrides.description || 'Sorted, loose mild steel scrap.')
     .field('pricePerKg', overrides.pricePerKg || 25)
@@ -191,12 +196,12 @@ module.exports = {
   submitWaste,
   pipelineToCollected,
   createPublishedListing,
-  User,
-  MaterialCategory,
-  PricingConfiguration,
-  WasteSubmission,
-  InventoryLot,
-  MarketplaceListing,
-  Order,
-  InventoryMovement,
+  users,
+  categories,
+  pricing,
+  submissions,
+  lots,
+  listings,
+  movements,
+  orders,
 };

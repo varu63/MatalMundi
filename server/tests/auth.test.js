@@ -2,19 +2,18 @@
 
 const request = require('supertest');
 const app = require('../src/app');
-const { User } = require('./utils');
+const { users } = require('./utils');
+const { verifyPassword } = require('../src/utils/password');
 
 async function makeUser(email) {
-  const user = new User({
+  return users.create({
     name: 'Local User',
     email,
     phone: '9811111111',
+    password: 'Password123',
     accountStatus: 'ACTIVE',
-    emailVerification: { verified: true },
+    emailVerificationVerified: true,
   });
-  await user.setPassword('Password123');
-  await user.save();
-  return user;
 }
 
 describe('Authentication & password hashing', () => {
@@ -48,14 +47,14 @@ describe('Authentication & password hashing', () => {
     expect(second.status).toBe(409);
   });
 
-  test('rejects weak password', async () => {
+  test('rejects weak password (400)', async () => {
     const res = await request(app).post('/api/v1/auth/register').send({
       name: 'Weak Pass',
       email: 'weak@example.com',
       phone: '9811111113',
       password: 'abc',
     });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   test('a client cannot grant itself the admin role', async () => {
@@ -68,6 +67,28 @@ describe('Authentication & password hashing', () => {
     });
     expect(res.status).toBe(201);
     expect(res.body.data.user.role).toBe('USER');
+  });
+
+  test('email verification completes via the returned dev token', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send({
+      name: 'Verify Me',
+      email: 'verify@example.com',
+      phone: '9811111115',
+      password: 'Password123',
+    });
+    expect(reg.status).toBe(201);
+    const token = reg.body.data.emailVerificationToken;
+    expect(token).toBeTruthy();
+
+    const ok = await request(app).post('/api/v1/auth/verify-email').send({ token });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.user.emailVerified).toBe(true);
+
+    const again = await request(app).post('/api/v1/auth/verify-email').send({ token });
+    expect(again.status).toBe(400);
+
+    const short = await request(app).post('/api/v1/auth/verify-email').send({ token: 'nope' });
+    expect(short.status).toBe(400);
   });
 
   test('login with wrong password is rejected', async () => {
@@ -96,11 +117,11 @@ describe('Authentication & password hashing', () => {
 
   test('passwords are stored hashed (bcrypt), never plaintext', async () => {
     const created = await makeUser('hash@example.com');
-    const fresh = await User.findById(created._id).select('+passwordHash');
+    const fresh = await users.findById(created.id);
     expect(fresh.passwordHash).not.toBe('Password123');
     expect(fresh.passwordHash).toMatch(/^\$2[aby]\$/);
-    await expect(fresh.comparePassword('Password123')).resolves.toBe(true);
-    await expect(fresh.comparePassword('WrongPass')).resolves.toBe(false);
+    await expect(verifyPassword('Password123', fresh.passwordHash)).resolves.toBe(true);
+    await expect(verifyPassword('WrongPass', fresh.passwordHash)).resolves.toBe(false);
   });
 
   test('forgot + reset password flow works', async () => {

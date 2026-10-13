@@ -4,6 +4,8 @@ import { AppLayout, Protected, AdminOnly } from './components/Layout';
 import Landing from './pages/Landing';
 import Marketplace from './pages/Marketplace';
 import ListingDetail from './pages/ListingDetail';
+import Auctions from './pages/Auctions';
+import AuctionDetail from './pages/AuctionDetail';
 import Cart from './pages/Cart';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -13,10 +15,14 @@ import DashboardHome from './pages/dashboard/DashboardHome';
 import SubmitWaste from './pages/dashboard/SubmitWaste';
 import MySubmissions from './pages/dashboard/MySubmissions';
 import MyOrders from './pages/dashboard/MyOrders';
+import MyAuctions from './pages/dashboard/MyAuctions';
+import MyBids from './pages/dashboard/MyBids';
 
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminOverview from './pages/admin/Overview';
 import AdminSubmissions from './pages/admin/Submissions';
+import AdminAuctions from './pages/admin/Auctions';
+import AdminAuctionSettings from './pages/admin/AuctionSettings';
 import AdminListings from './pages/admin/Listings';
 import AdminOrders from './pages/admin/Orders';
 import AdminUsers from './pages/admin/Users';
@@ -32,6 +38,8 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/marketplace/:id" element={<ListingDetail />} />
+        <Route path="/auctions" element={<Auctions />} />
+        <Route path="/auctions/:id" element={<AuctionDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/cart" element={<Cart />} />
@@ -47,6 +55,8 @@ export default function App() {
           <Route index element={<DashboardHome />} />
           <Route path="submit" element={<SubmitWaste />} />
           <Route path="submissions" element={<MySubmissions />} />
+          <Route path="auctions" element={<MyAuctions />} />
+          <Route path="bids" element={<MyBids />} />
           <Route path="orders" element={<MyOrders />} />
         </Route>
 
@@ -60,6 +70,8 @@ export default function App() {
         >
           <Route index element={<AdminOverview />} />
           <Route path="submissions" element={<AdminSubmissions />} />
+          <Route path="auctions" element={<AdminAuctions />} />
+          <Route path="auction-settings" element={<AdminAuctionSettings />} />
           <Route path="listings" element={<AdminListings />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="users" element={<AdminUsers />} />

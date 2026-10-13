@@ -1,6 +1,6 @@
 'use strict';
 
-const { User } = require('../models');
+const usersRepo = require('../repositories/users');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('./asyncHandler');
 const { verifyToken, AUTH_COOKIE } = require('../services/tokenService');
@@ -19,7 +19,7 @@ const optionalAuth = asyncHandler(async (req, _res, next) => {
   if (!token) return next();
   try {
     const decoded = verifyToken(token);
-    const user = await User.findById(decoded.sub);
+    const user = await usersRepo.findById(decoded.sub);
     if (user && user.accountStatus === ACCOUNT_STATUS.ACTIVE) req.user = user;
   } catch (_e) {
     // ignore invalid token for optional auth
@@ -39,7 +39,7 @@ const protect = asyncHandler(async (req, _res, next) => {
     throw ApiError.unauthorized('Invalid or expired session');
   }
 
-  const user = await User.findById(decoded.sub);
+  const user = await usersRepo.findById(decoded.sub);
   if (!user) throw ApiError.unauthorized('Account no longer exists');
   if (user.accountStatus === ACCOUNT_STATUS.SUSPENDED) {
     throw ApiError.forbidden('Account suspended');

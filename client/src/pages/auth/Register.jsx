@@ -20,7 +20,13 @@ export default function Register() {
     setBusy(true);
     setError('');
     try {
-      await register(form);
+      await register({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        address: { city: form.city, state: form.state },
+      });
       toast.success('Account created! Welcome to MetalMundi.');
       navigate('/dashboard');
     } catch (err) {

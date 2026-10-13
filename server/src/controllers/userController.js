@@ -1,23 +1,29 @@
 'use strict';
 
+const usersRepo = require('../repositories/users');
 const asyncHandler = require('../middleware/asyncHandler');
 const { ok } = require('../utils/apiResponse');
+const { serializeUser, normalizeAddress } = require('../utils/serializers');
 
 /** GET /users/me */
-const getMe = asyncHandler(async (req, res) => ok(res, { user: req.user.toSafeJSON() }));
+const getMe = asyncHandler(async (req, res) => ok(res, { user: serializeUser(req.user) }));
 
 /** PATCH /users/me */
 const updateMe = asyncHandler(async (req, res) => {
   const { name, phone, address } = req.body;
 
-  if (name !== undefined) req.user.name = name;
-  if (phone !== undefined) req.user.phone = phone;
+  const data = {};
+  if (name !== undefined) data.name = name;
+  if (phone !== undefined) data.phone = phone;
   if (address !== undefined) {
-    req.user.address = { ...req.user.address.toObject?.() ?? req.user.address, ...address };
+    data.address = { ...normalizeAddress(req.user.address), ...address };
   }
-  await req.user.save();
 
-  return ok(res, { user: req.user.toSafeJSON() }, 'Profile updated');
+  const fresh = Object.keys(data).length
+    ? await usersRepo.updateById(req.user.id, data)
+    : req.user;
+
+  return ok(res, { user: serializeUser(fresh) }, 'Profile updated');
 });
 
 module.exports = { getMe, updateMe };

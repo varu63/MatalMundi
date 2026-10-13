@@ -1,6 +1,6 @@
 'use strict';
 
-const { AuditLog } = require('../models');
+const auditRepo = require('../repositories/audit');
 const logger = require('../utils/logger');
 
 /**
@@ -19,8 +19,8 @@ async function recordAudit({
   req = undefined,
 }) {
   try {
-    await AuditLog.create({
-      actor: actor || (req && req.user && req.user._id) || null,
+    await auditRepo.create({
+      actorId: actor || (req && req.user && req.user.id) || null,
       actorRole: actorRole || (req && req.user && req.user.role) || '',
       action,
       resourceType,

@@ -1,21 +1,29 @@
 'use strict';
 
-const { WasteSubmission, MaterialCategory } = require('../models');
+const categoriesRepo = require('../repositories/categories');
+const submissionsRepo = require('../repositories/submissions');
+const auctionsRepo = require('../repositories/auctions');
+const auctionSettingsRepo = require('../repositories/auctionSettings');
+const { prisma } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../middleware/asyncHandler');
 const { ok, created, paginated } = require('../utils/apiResponse');
+const { serializeSubmission, serializeAuction } = require('../utils/serializers');
 const { uploadImage, deleteAssets } = require('../services/storageService');
 const {
   getActivePricing,
   computeValuation,
   normalizeDemand,
 } = require('../services/pricingService');
+const { resolveDurationMinutes } = require('../services/auctionService');
 const { notifySubmission } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
 const { generateReference } = require('../utils/idGenerator');
 const { parsePage } = require('../utils/numbers');
 const {
   SUBMISSION_STATUS,
+  AUCTION_STATUS,
+  SALE_MODE,
   AUDIT_ACTION,
   DEMAND_BASIS,
   ROLES,
@@ -27,40 +35,61 @@ function fileFor(files, name) {
   return files && files[name] && files[name][0];
 }
 
+function moneyToPaise(rupees) {
+  return Math.round(Number(rupees) * 100);
+}
+
 /** POST /waste-submissions  (multipart) */
 const createSubmission = asyncHandler(async (req, res) => {
   const files = req.files || {};
+  const saleMode = req.body.saleMode || SALE_MODE.NORMAL;
+  const isAuction = saleMode === SALE_MODE.AUCTION;
 
-  // 1. All four required side photographs must be present.
+  // 1. All four required side photographs must be present. Auctions also
+  //    require a weight-evidence photo.
   const missing = REQUIRED_SIDES.filter((side) => !fileFor(files, side));
+  if (isAuction && !fileFor(files, 'weightEvidence')) missing.push('weightEvidence');
   if (missing.length) {
     throw ApiError.badRequest(
-      `All four side photographs are required. Missing: ${missing.join(', ')}`,
+      `All four side photographs are required${isAuction ? ' plus weight evidence' : ''}. Missing: ${missing.join(', ')}`,
     );
   }
 
   // 2. Category must exist and be active (only supported categories allowed).
-  const category = await MaterialCategory.findById(req.body.materialCategory);
+  const category = await categoriesRepo.findById(req.body.materialCategory);
   if (!category || !category.active) {
     throw ApiError.badRequest('Unsupported or inactive material category');
   }
 
   // 3. Server derives identity from the session — never from the client.
-  const sellerId = req.user._id;
+  const sellerId = req.user.id;
 
   // 4. Basic duplicate-submission guard (accidental double submit).
-  const dupe = await WasteSubmission.findOne({
-    seller: sellerId,
+  const dupe = await submissionsRepo.findRecentDuplicate({
+    sellerId,
     materialType: req.body.materialType,
     quantityKg: req.body.quantityKg,
-    createdAt: { $gte: new Date(Date.now() - 8000) },
-  }).lean();
+    since: new Date(Date.now() - 8000),
+  });
   if (dupe) {
     throw ApiError.conflict('A similar submission was just created. Please wait a moment.');
   }
 
-  // 5. Pricing must exist for the category/type.
-  const pricingConfig = await getActivePricing(category._id, req.body.materialType);
+  // 4b. Auction eligibility — admin-configured minimum lot size for auctions.
+  let auctionSettings = null;
+  let auctionDurationMinutes = null;
+  if (isAuction) {
+    auctionSettings = await auctionSettingsRepo.get();
+    if (Number(req.body.quantityKg) < Number(auctionSettings.minAuctionQuantityKg)) {
+      throw ApiError.badRequest(
+        `Auctions require at least ${auctionSettings.minAuctionQuantityKg} kg (you entered ${req.body.quantityKg} kg). Use a normal sale for smaller lots.`,
+      );
+    }
+    auctionDurationMinutes = resolveDurationMinutes(auctionSettings, req.body.durationMinutes);
+  }
+
+  // 5. Pricing must exist for the category/type (it drives auction fees too).
+  const pricingConfig = await getActivePricing(category.id, req.body.materialType);
   if (!pricingConfig) {
     throw ApiError.badRequest('No pricing is configured for this material yet');
   }
@@ -78,6 +107,16 @@ const createSubmission = asyncHandler(async (req, res) => {
         mimetype: fileFor(files, side).mimetype,
       });
       images[side] = asset;
+      uploaded.push(asset);
+    }
+
+    if (isAuction) {
+      const evidence = fileFor(files, 'weightEvidence');
+      const asset = await uploadImage(evidence.buffer, {
+        folder,
+        mimetype: evidence.mimetype,
+      });
+      images.weightEvidence = asset;
       uploaded.push(asset);
     }
 
@@ -109,99 +148,138 @@ const createSubmission = asyncHandler(async (req, res) => {
       quantityKg: req.body.quantityKg,
     });
 
-    const submission = await WasteSubmission.create({
-      submissionNumber: generateReference('WS'),
-      seller: sellerId,
-      materialCategory: category._id,
-      materialType: req.body.materialType,
-      quantityKg: req.body.quantityKg,
-      condition: req.body.condition,
-      qualityGrade: req.body.qualityGrade,
-      description: req.body.description,
-      images,
-      pickup: req.body.pickup,
-      demandBasis: req.body.demandBasis,
-      demandedTotalPaise: demand.demandedTotalPaise,
-      demandedPerKgPaise: demand.demandedPerKgPaise,
-      valuation,
-      status: SUBMISSION_STATUS.PENDING_APPROVAL,
+    // 8. Submission (+ auction row in auction mode) are created atomically —
+    //    an AUCTION-mode submission can never exist without its auction.
+    const { submission, auction } = await prisma.$transaction(async (tx) => {
+      const createdSubmission = await submissionsRepo.create({
+        submissionNumber: generateReference('WS'),
+        sellerId,
+        materialCategoryId: category.id,
+        materialType: req.body.materialType,
+        quantityKg: req.body.quantityKg,
+        condition: req.body.condition,
+        qualityGrade: req.body.qualityGrade,
+        description: req.body.description,
+        images,
+        pickup: req.body.pickup,
+        demandBasis: req.body.demandBasis,
+        demandedTotalPaise: demand.demandedTotalPaise,
+        demandedPerKgPaise: demand.demandedPerKgPaise,
+        valuation,
+        status: SUBMISSION_STATUS.PENDING_APPROVAL,
+        saleMode,
+      }, tx);
+
+      let createdAuction = null;
+      if (isAuction) {
+        createdAuction = await auctionsRepo.create({
+          auctionNumber: generateReference('AUC'),
+          submissionId: createdSubmission.id,
+          sellerId,
+          materialCategoryId: category.id,
+          materialType: req.body.materialType,
+          quantityKg: req.body.quantityKg,
+          condition: req.body.condition,
+          qualityGrade: req.body.qualityGrade,
+          images,
+          location: {
+            address: req.body.pickup.address,
+            city: req.body.pickup.city,
+            state: req.body.pickup.state,
+          },
+          inspectionNotes: req.body.inspectionNotes || '',
+          startingPricePerKgPaise: moneyToPaise(req.body.startingPricePerKg),
+          expectedPricePerKgPaise:
+            req.body.expectedPricePerKg != null ? moneyToPaise(req.body.expectedPricePerKg) : 0,
+          minAcceptableBidPerKgPaise:
+            req.body.minAcceptablePerKg != null ? moneyToPaise(req.body.minAcceptablePerKg) : 0,
+          reservePricePerKgPaise:
+            req.body.reservePricePerKg != null ? moneyToPaise(req.body.reservePricePerKg) : null,
+          minIncrementType: auctionSettings.minIncrementType,
+          minIncrementValue: auctionSettings.minIncrementValue,
+          antiSnipingEnabled: auctionSettings.antiSnipingEnabled,
+          antiSnipingWindowSeconds: auctionSettings.antiSnipingWindowSeconds,
+          antiSnipingExtensionSeconds: auctionSettings.antiSnipingExtensionSeconds,
+          durationMinutes: auctionDurationMinutes,
+          status: AUCTION_STATUS.PENDING_APPROVAL,
+        }, tx);
+      }
+
+      return { submission: createdSubmission, auction: createdAuction };
     });
 
     await notifySubmission(
       sellerId,
-      'Waste submission received',
-      `Your submission ${submission.submissionNumber} was received and is pending review.`,
-      submission._id,
+      isAuction ? 'Auction submission received' : 'Waste submission received',
+      isAuction
+        ? `Your auction ${auction.auctionNumber} was received. It becomes public once our team approves it.`
+        : `Your submission ${submission.submissionNumber} was received and is pending review.`,
+      submission.id,
     );
     await recordAudit({
       action: AUDIT_ACTION.SUBMISSION_CREATE,
       resourceType: 'WasteSubmission',
-      resourceId: submission._id,
+      resourceId: submission.id,
+      meta: { saleMode, auctionId: auction ? auction.id : null },
       req,
     });
 
-    return created(res, { submission: submission.toJSON() }, 'Waste submission created');
+    return created(
+      res,
+      {
+        submission: serializeSubmission(submission),
+        ...(auction ? { auction: serializeAuction(auction, { variant: 'owner' }) } : {}),
+      },
+      isAuction ? 'Auction submission created — pending approval' : 'Waste submission created',
+    );
   } catch (err) {
-    // 8. Roll back uploaded assets on any failure.
+    // 9. Roll back uploaded assets on any failure.
     await deleteAssets(uploaded);
     throw err;
   }
 });
 
-function sanitizeSubmission(submission, isAdmin) {
-  const obj = submission.toJSON ? submission.toJSON() : submission;
+function sanitizeSubmission(serialized, isAdmin) {
   if (!isAdmin) {
-    delete obj.adminNotes;
-    delete obj.proposedPurchasePriceSetBy;
+    delete serialized.adminNotes;
+    delete serialized.proposedPurchasePriceSetBy;
   }
-  return obj;
+  return serialized;
 }
 
 /** GET /waste-submissions/my */
 const mySubmissions = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
-  const filter = { seller: req.user._id };
-  if (req.query.status) filter.status = req.query.status;
-
-  const [items, total] = await Promise.all([
-    WasteSubmission.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('materialCategory', 'name slug')
-      .lean(),
-    WasteSubmission.countDocuments(filter),
-  ]);
-
-  const sanitized = items.map((s) => {
-    delete s.adminNotes;
-    return s;
+  const { rows, total } = await submissionsRepo.list({
+    sellerId: req.user.id,
+    status: req.query.status,
+    skip,
+    take: limit,
+    variant: 'owner',
   });
+
+  const sanitized = rows.map((s) => sanitizeSubmission(serializeSubmission(s), false));
   return paginated(res, sanitized, { page, limit, total });
 });
 
 /** GET /waste-submissions/:id — owner or admin only. */
 const getSubmission = asyncHandler(async (req, res) => {
-  const submission = await WasteSubmission.findById(req.params.id)
-    .populate('materialCategory', 'name slug')
-    .populate('seller', 'name email phone')
-    .populate('inventoryLot', 'lotNumber availableQuantityKg acceptedQuantityKg lotStatus')
-    .populate('listing', 'title pricePerKgPaise publicationStatus active availableQuantityKg');
+  const submission = await submissionsRepo.findById(req.params.id, { variant: 'owner' });
   if (!submission) throw ApiError.notFound('Submission not found');
 
   const isAdmin = req.user.role === ROLES.ADMIN;
-  const isOwner = String(submission.seller._id || submission.seller) === String(req.user._id);
+  const isOwner = String(submission.sellerId) === String(req.user.id);
   if (!isAdmin && !isOwner) throw ApiError.forbidden('You cannot view this submission');
 
-  return ok(res, { submission: sanitizeSubmission(submission, isAdmin) });
+  return ok(res, { submission: sanitizeSubmission(serializeSubmission(submission), isAdmin) });
 });
 
 /** POST /waste-submissions/estimate — preview valuation, nothing persisted. */
 const estimateValuation = asyncHandler(async (req, res) => {
-  const category = await MaterialCategory.findById(req.body.materialCategory);
+  const category = await categoriesRepo.findById(req.body.materialCategory);
   if (!category || !category.active) throw ApiError.badRequest('Unsupported material category');
 
-  const pricingConfig = await getActivePricing(category._id, req.body.materialType);
+  const pricingConfig = await getActivePricing(category.id, req.body.materialType);
   if (!pricingConfig) {
     throw ApiError.badRequest('No pricing is configured for this material yet');
   }

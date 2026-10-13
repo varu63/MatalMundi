@@ -7,6 +7,15 @@ function randomToken(bytes = 32) {
 }
 
 /**
+ * Primary-key generator. 12 random bytes render as a 24-char hex string —
+ * the same shape Mongo ObjectIds had, so route params, validators and the
+ * frontend keep working unchanged.
+ */
+function newId() {
+  return randomToken(12);
+}
+
+/**
  * Human-readable, mostly-unique reference numbers.
  * e.g. WS-2026-1A2B3C / ORD-2026-9F8E7D
  */
@@ -16,4 +25,4 @@ function generateReference(prefix) {
   return `${prefix}-${year}-${rand}`;
 }
 
-module.exports = { randomToken, generateReference };
+module.exports = { randomToken, newId, generateReference };
