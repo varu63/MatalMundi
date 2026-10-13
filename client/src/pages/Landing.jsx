@@ -18,7 +18,7 @@ export default function Landing() {
   return (
     <div>
       <section
-        className="relative overflow-hidden bg-ink-900 bg-cover py-20 text-white"
+        className="relative mx-4 mt-6 overflow-hidden rounded-2xl bg-ink-900 bg-cover py-20 text-white sm:mx-6 lg:mx-8"
         style={{ backgroundImage: `url(${heroImg})`, backgroundPosition: 'center right' }}
       >
         <div className="absolute inset-0 bg-[rgba(8,30,60,0.65)] md:hidden" />
