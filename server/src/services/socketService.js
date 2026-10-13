@@ -32,6 +32,20 @@ function initSocket(httpServer) {
   const originList = [...env.corsOrigins, env.clientUrl].filter(Boolean);
   io = new Server(httpServer, {
     cors: { origin: originList.length ? originList : true, credentials: true },
+    // Same-host browser clients (single-service deployment) are always allowed,
+    // mirroring the HTTP CORS delegate in app.js — even when CORS_ORIGINS is unset.
+    allowRequest: (req, allow) => {
+      if (!originList.length) return allow(null, true);
+      const origin = req.headers.origin;
+      if (!origin) return allow(null, true); // non-browser clients
+      let sameHost = false;
+      try {
+        sameHost = new URL(origin).host === req.headers.host;
+      } catch {
+        sameHost = false;
+      }
+      return allow(null, sameHost || originList.includes(origin));
+    },
     path: '/socket.io',
   });
 
