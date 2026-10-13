@@ -67,104 +67,113 @@ async function placeBid({ auctionId, bidderId, bidPerKgPaise, idempotencyKey = n
 
   // Fast replay path for retried requests (also re-checked inside the lock).
   if (idempotencyKey) {
-    const existing = await auctionBidsRepo.findByAuctionAndIdempotencyKey(auctionId, idempotencyKey);
+    const existing = await auctionBidsRepo.findByAuctionAndIdempotencyKey(
+      auctionId,
+      idempotencyKey
+    );
     if (existing) {
       const auction = await auctionsRepo.findRawById(auctionId);
       return { bid: existing, auction, replay: true };
     }
   }
 
-  const outcome = await prisma.$transaction(async (tx) => {
-    const locked = await tx.$queryRaw`SELECT * FROM waste_auctions WHERE id = ${auctionId} FOR UPDATE`;
-    const auction = Array.isArray(locked) ? locked[0] : null;
-    if (!auction) return { error: ApiError.notFound('Auction not found') };
+  const outcome = await prisma.$transaction(
+    async (tx) => {
+      const locked =
+        await tx.$queryRaw`SELECT * FROM waste_auctions WHERE id = ${auctionId} FOR UPDATE`;
+      const auction = Array.isArray(locked) ? locked[0] : null;
+      if (!auction) return { error: ApiError.notFound('Auction not found') };
 
-    if (idempotencyKey) {
-      const same = await tx.wasteAuctionBid.findFirst({ where: { auctionId, idempotencyKey } });
-      if (same) return { bid: same, auction, replay: true };
-    }
-
-    if (String(auction.sellerId) === String(bidderId)) {
-      return { error: ApiError.forbidden('You cannot bid on your own waste') };
-    }
-    if (auction.status !== AUCTION_STATUS.ACTIVE) {
-      return { error: ApiError.conflict(`Auction is not active (status: ${auction.status})`) };
-    }
-    const now = Date.now();
-    if (!auction.endAt || new Date(auction.endAt).getTime() <= now) {
-      return { error: ApiError.conflict('This auction has ended') };
-    }
-
-    const minNext = minNextBidPaise(auction);
-    if (bidPaise < minNext) {
-      const basis = auction.currentHighestBidPerKgPaise == null
-        ? 'the starting price'
-        : 'the current highest bid plus the minimum increment';
-      return {
-        error: ApiError.conflict(
-          `Bid too low: minimum acceptable bid is ${minNext} paise/kg (${basis})`,
-        ),
-      };
-    }
-
-    const previousLeaderId = auction.currentHighestBidderId || null;
-    const firstBidByBidder =
-      (await tx.wasteAuctionBid.count({ where: { auctionId, bidderId } })) === 0;
-
-    const bidId = newId();
-    const bid = await tx.wasteAuctionBid.create({
-      data: {
-        id: bidId,
-        auctionId,
-        bidderId,
-        bidPerKgPaise: bidPaise,
-        totalBidValuePaise: Math.round(bidPaise * auction.quantityKg),
-        status: BID_STATUS.LEADING,
-        idempotencyKey: idempotencyKey || null,
-      },
-    });
-
-    await tx.wasteAuctionBid.updateMany({
-      where: { auctionId, status: BID_STATUS.LEADING, id: { not: bidId } },
-      data: { status: BID_STATUS.OUTBID },
-    });
-
-    // Anti-sniping: a bid inside the configured window extends the deadline.
-    // Evaluated against the server-stored endAt inside the row lock.
-    let endAt = new Date(auction.endAt);
-    let extensionCount = auction.extensionCount || 0;
-    let extended = false;
-    if (auction.antiSnipingEnabled) {
-      const msLeft = endAt.getTime() - now;
-      if (msLeft <= Number(auction.antiSnipingWindowSeconds) * 1000) {
-        endAt = new Date(endAt.getTime() + Number(auction.antiSnipingExtensionSeconds) * 1000);
-        extensionCount += 1;
-        extended = true;
+      if (idempotencyKey) {
+        const same = await tx.wasteAuctionBid.findFirst({ where: { auctionId, idempotencyKey } });
+        if (same) return { bid: same, auction, replay: true };
       }
-    }
 
-    const updatedAuction = await tx.wasteAuction.update({
-      where: { id: auctionId },
-      data: {
-        currentHighestBidPerKgPaise: bidPaise,
-        currentHighestBidId: bidId,
-        currentHighestBidderId: bidderId,
-        bidCount: { increment: 1 },
-        ...(firstBidByBidder ? { bidderCount: { increment: 1 } } : {}),
-        endAt,
-        extensionCount,
-      },
-    });
+      if (String(auction.sellerId) === String(bidderId)) {
+        return { error: ApiError.forbidden('You cannot bid on your own waste') };
+      }
+      if (auction.status !== AUCTION_STATUS.ACTIVE) {
+        return { error: ApiError.conflict(`Auction is not active (status: ${auction.status})`) };
+      }
+      const now = Date.now();
+      if (!auction.endAt || new Date(auction.endAt).getTime() <= now) {
+        return { error: ApiError.conflict('This auction has ended') };
+      }
 
-    return {
-      bid,
-      auction: updatedAuction,
-      previousLeaderId: previousLeaderId && String(previousLeaderId) !== String(bidderId)
-        ? previousLeaderId
-        : null,
-      extended,
-    };
-  }, { timeout: 15_000 });
+      const minNext = minNextBidPaise(auction);
+      if (bidPaise < minNext) {
+        const basis =
+          auction.currentHighestBidPerKgPaise == null
+            ? 'the starting price'
+            : 'the current highest bid plus the minimum increment';
+        return {
+          error: ApiError.conflict(
+            `Bid too low: minimum acceptable bid is ${minNext} paise/kg (${basis})`
+          ),
+        };
+      }
+
+      const previousLeaderId = auction.currentHighestBidderId || null;
+      const firstBidByBidder =
+        (await tx.wasteAuctionBid.count({ where: { auctionId, bidderId } })) === 0;
+
+      const bidId = newId();
+      const bid = await tx.wasteAuctionBid.create({
+        data: {
+          id: bidId,
+          auctionId,
+          bidderId,
+          bidPerKgPaise: bidPaise,
+          totalBidValuePaise: Math.round(bidPaise * auction.quantityKg),
+          status: BID_STATUS.LEADING,
+          idempotencyKey: idempotencyKey || null,
+        },
+      });
+
+      await tx.wasteAuctionBid.updateMany({
+        where: { auctionId, status: BID_STATUS.LEADING, id: { not: bidId } },
+        data: { status: BID_STATUS.OUTBID },
+      });
+
+      // Anti-sniping: a bid inside the configured window extends the deadline.
+      // Evaluated against the server-stored endAt inside the row lock.
+      let endAt = new Date(auction.endAt);
+      let extensionCount = auction.extensionCount || 0;
+      let extended = false;
+      if (auction.antiSnipingEnabled) {
+        const msLeft = endAt.getTime() - now;
+        if (msLeft <= Number(auction.antiSnipingWindowSeconds) * 1000) {
+          endAt = new Date(endAt.getTime() + Number(auction.antiSnipingExtensionSeconds) * 1000);
+          extensionCount += 1;
+          extended = true;
+        }
+      }
+
+      const updatedAuction = await tx.wasteAuction.update({
+        where: { id: auctionId },
+        data: {
+          currentHighestBidPerKgPaise: bidPaise,
+          currentHighestBidId: bidId,
+          currentHighestBidderId: bidderId,
+          bidCount: { increment: 1 },
+          ...(firstBidByBidder ? { bidderCount: { increment: 1 } } : {}),
+          endAt,
+          extensionCount,
+        },
+      });
+
+      return {
+        bid,
+        auction: updatedAuction,
+        previousLeaderId:
+          previousLeaderId && String(previousLeaderId) !== String(bidderId)
+            ? previousLeaderId
+            : null,
+        extended,
+      };
+    },
+    { timeout: 15_000 }
+  );
 
   if (outcome.error) throw outcome.error;
 
@@ -175,7 +184,7 @@ async function placeBid({ auctionId, bidderId, bidPerKgPaise, idempotencyKey = n
         previousLeaderId,
         'You have been outbid',
         `A higher bid of ₹${(bid.bidPerKgPaise / 100).toFixed(2)}/kg was placed on ${auction.auctionNumber}.`,
-        auction.id,
+        auction.id
       );
       emitToUser(previousLeaderId, 'auction:outbid', {
         auctionId: auction.id,
@@ -275,135 +284,146 @@ function buildSettlement({ auction, winningBidPerKgPaise, quantityKg, pricingCon
  * winner, creates the linked order and settles the money snapshot.
  */
 async function finalizeAuction(auctionId, { req = null, trigger = 'system' } = {}) {
-  const outcome = await prisma.$transaction(async (tx) => {
-    const locked = await tx.$queryRaw`SELECT * FROM waste_auctions WHERE id = ${auctionId} FOR UPDATE`;
-    const auction = Array.isArray(locked) ? locked[0] : null;
-    if (!auction) return { skipped: 'not_found' };
-    if (auction.status !== AUCTION_STATUS.ACTIVE) return { skipped: 'not_active' };
-    if (!auction.endAt || new Date(auction.endAt).getTime() > Date.now()) {
-      return { skipped: 'not_due' };
-    }
+  const outcome = await prisma.$transaction(
+    async (tx) => {
+      const locked =
+        await tx.$queryRaw`SELECT * FROM waste_auctions WHERE id = ${auctionId} FOR UPDATE`;
+      const auction = Array.isArray(locked) ? locked[0] : null;
+      if (!auction) return { skipped: 'not_found' };
+      if (auction.status !== AUCTION_STATUS.ACTIVE) return { skipped: 'not_active' };
+      if (!auction.endAt || new Date(auction.endAt).getTime() > Date.now()) {
+        return { skipped: 'not_due' };
+      }
 
-    const topBid = await tx.wasteAuctionBid.findFirst({
-      where: { auctionId },
-      orderBy: [{ bidPerKgPaise: 'desc' }, { createdAt: 'asc' }],
-    });
-
-    // 1. No bids → NO_BIDS.
-    if (!topBid) {
-      const updated = await tx.wasteAuction.update({
-        where: { id: auctionId },
-        data: {
-          status: AUCTION_STATUS.NO_BIDS,
-          winnerSelectionReason: AUCTION_RESULT.NO_BIDS,
-          finalizedAt: new Date(),
-        },
-      });
-      return { result: AUCTION_RESULT.NO_BIDS, auction: updated };
-    }
-
-    // 2. Reserve not met → end without a winner. Never auto-award below reserve.
-    const reserve = auction.reservePricePerKgPaise;
-    if (reserve != null && Number(topBid.bidPerKgPaise) < Number(reserve)) {
-      await tx.wasteAuctionBid.updateMany({
+      const topBid = await tx.wasteAuctionBid.findFirst({
         where: { auctionId },
+        orderBy: [{ bidPerKgPaise: 'desc' }, { createdAt: 'asc' }],
+      });
+
+      // 1. No bids → NO_BIDS.
+      if (!topBid) {
+        const updated = await tx.wasteAuction.update({
+          where: { id: auctionId },
+          data: {
+            status: AUCTION_STATUS.NO_BIDS,
+            winnerSelectionReason: AUCTION_RESULT.NO_BIDS,
+            finalizedAt: new Date(),
+          },
+        });
+        return { result: AUCTION_RESULT.NO_BIDS, auction: updated };
+      }
+
+      // 2. Reserve not met → end without a winner. Never auto-award below reserve.
+      const reserve = auction.reservePricePerKgPaise;
+      if (reserve != null && Number(topBid.bidPerKgPaise) < Number(reserve)) {
+        await tx.wasteAuctionBid.updateMany({
+          where: { auctionId },
+          data: { status: BID_STATUS.LOST },
+        });
+        const updated = await tx.wasteAuction.update({
+          where: { id: auctionId },
+          data: {
+            status: AUCTION_STATUS.ENDED,
+            winnerSelectionReason: AUCTION_RESULT.RESERVE_NOT_MET,
+            finalizedAt: new Date(),
+          },
+        });
+        return { result: AUCTION_RESULT.RESERVE_NOT_MET, auction: updated, topBid };
+      }
+
+      // 3. Winner decided → settle, create the linked order, await payment.
+      const pricingConfig = await tx.pricingConfiguration.findFirst({
+        where: { materialCategoryId: auction.materialCategoryId, active: true },
+        orderBy: [{ version: 'desc' }],
+      });
+      const settlement = buildSettlement({
+        auction,
+        winningBidPerKgPaise: topBid.bidPerKgPaise,
+        quantityKg: auction.quantityKg,
+        pricingConfig,
+      });
+
+      const buyer = await tx.user.findUnique({ where: { id: topBid.bidderId } });
+      const buyerAddress = (buyer && typeof buyer.address === 'object' && buyer.address) || {};
+
+      await tx.wasteAuctionBid.update({
+        where: { id: topBid.id },
+        data: { status: BID_STATUS.WON },
+      });
+      await tx.wasteAuctionBid.updateMany({
+        where: { auctionId, id: { not: topBid.id } },
         data: { status: BID_STATUS.LOST },
       });
+
+      const order = await tx.order.create({
+        data: {
+          id: newId(),
+          orderNumber: generateReference('ORD'),
+          buyerId: topBid.bidderId,
+          auctionId: auction.id,
+          delivery: {
+            address: buyerAddress.line1 || buyerAddress.address || '',
+            city: buyerAddress.city || (auction.location && auction.location.city) || '',
+            state: buyerAddress.state || (auction.location && auction.location.state) || '',
+            postalCode: buyerAddress.postalCode || '',
+            contactName: (buyer && buyer.name) || '',
+            contactPhone: (buyer && buyer.phone) || '',
+          },
+          items: [
+            {
+              materialName: `${auction.materialType} — auction ${auction.auctionNumber}`,
+              materialType: auction.materialType,
+              qualityGrade: auction.qualityGrade,
+              condition: auction.condition,
+              weightKg: auction.quantityKg,
+              unitPricePaise: topBid.bidPerKgPaise,
+              subtotalPaise: settlement.grossPaise,
+              reservedWeightKg: 0,
+              fulfilledWeightKg: 0,
+              sourceAuctionId: auction.id,
+              sourceSubmissionId: auction.submissionId,
+            },
+          ],
+          materialSubtotalPaise: settlement.grossPaise,
+          taxPercent: settlement.taxPercent,
+          taxPaise: settlement.taxPaise,
+          transportationPaise: 0,
+          otherFeesPaise: 0,
+          totalPaise: settlement.buyerPayablePaise,
+          quoteIsProvisional: false,
+          status: ORDER_STATUS.ACCEPTED,
+          statusHistory: [
+            {
+              status: ORDER_STATUS.ACCEPTED,
+              at: new Date(),
+              by: null,
+              note: `Created from won auction ${auction.auctionNumber}`,
+            },
+          ],
+          notes: `Auction win — winning bid ₹${(topBid.bidPerKgPaise / 100).toFixed(2)}/kg`,
+          inventoryReserved: false,
+          inventoryCommitted: false,
+        },
+      });
+
       const updated = await tx.wasteAuction.update({
         where: { id: auctionId },
         data: {
-          status: AUCTION_STATUS.ENDED,
-          winnerSelectionReason: AUCTION_RESULT.RESERVE_NOT_MET,
+          status: AUCTION_STATUS.AWAITING_PAYMENT,
+          winnerId: topBid.bidderId,
+          winningBidId: topBid.id,
+          winningBidPerKgPaise: topBid.bidPerKgPaise,
+          winningTotalPaise: settlement.grossPaise,
+          winnerSelectionReason: AUCTION_RESULT.WINNER,
+          settlement,
           finalizedAt: new Date(),
         },
       });
-      return { result: AUCTION_RESULT.RESERVE_NOT_MET, auction: updated, topBid };
-    }
 
-    // 3. Winner decided → settle, create the linked order, await payment.
-    const pricingConfig = await tx.pricingConfiguration.findFirst({
-      where: { materialCategoryId: auction.materialCategoryId, active: true },
-      orderBy: [{ version: 'desc' }],
-    });
-    const settlement = buildSettlement({
-      auction,
-      winningBidPerKgPaise: topBid.bidPerKgPaise,
-      quantityKg: auction.quantityKg,
-      pricingConfig,
-    });
-
-    const buyer = await tx.user.findUnique({ where: { id: topBid.bidderId } });
-    const buyerAddress = (buyer && typeof buyer.address === 'object' && buyer.address) || {};
-
-    await tx.wasteAuctionBid.update({ where: { id: topBid.id }, data: { status: BID_STATUS.WON } });
-    await tx.wasteAuctionBid.updateMany({
-      where: { auctionId, id: { not: topBid.id } },
-      data: { status: BID_STATUS.LOST },
-    });
-
-    const order = await tx.order.create({
-      data: {
-        id: newId(),
-        orderNumber: generateReference('ORD'),
-        buyerId: topBid.bidderId,
-        auctionId: auction.id,
-        delivery: {
-          address: buyerAddress.line1 || buyerAddress.address || '',
-          city: buyerAddress.city || (auction.location && auction.location.city) || '',
-          state: buyerAddress.state || (auction.location && auction.location.state) || '',
-          postalCode: buyerAddress.postalCode || '',
-          contactName: (buyer && buyer.name) || '',
-          contactPhone: (buyer && buyer.phone) || '',
-        },
-        items: [{
-          materialName: `${auction.materialType} — auction ${auction.auctionNumber}`,
-          materialType: auction.materialType,
-          qualityGrade: auction.qualityGrade,
-          condition: auction.condition,
-          weightKg: auction.quantityKg,
-          unitPricePaise: topBid.bidPerKgPaise,
-          subtotalPaise: settlement.grossPaise,
-          reservedWeightKg: 0,
-          fulfilledWeightKg: 0,
-          sourceAuctionId: auction.id,
-          sourceSubmissionId: auction.submissionId,
-        }],
-        materialSubtotalPaise: settlement.grossPaise,
-        taxPercent: settlement.taxPercent,
-        taxPaise: settlement.taxPaise,
-        transportationPaise: 0,
-        otherFeesPaise: 0,
-        totalPaise: settlement.buyerPayablePaise,
-        quoteIsProvisional: false,
-        status: ORDER_STATUS.ACCEPTED,
-        statusHistory: [{
-          status: ORDER_STATUS.ACCEPTED,
-          at: new Date(),
-          by: null,
-          note: `Created from won auction ${auction.auctionNumber}`,
-        }],
-        notes: `Auction win — winning bid ₹${(topBid.bidPerKgPaise / 100).toFixed(2)}/kg`,
-        inventoryReserved: false,
-        inventoryCommitted: false,
-      },
-    });
-
-    const updated = await tx.wasteAuction.update({
-      where: { id: auctionId },
-      data: {
-        status: AUCTION_STATUS.AWAITING_PAYMENT,
-        winnerId: topBid.bidderId,
-        winningBidId: topBid.id,
-        winningBidPerKgPaise: topBid.bidPerKgPaise,
-        winningTotalPaise: settlement.grossPaise,
-        winnerSelectionReason: AUCTION_RESULT.WINNER,
-        settlement,
-        finalizedAt: new Date(),
-      },
-    });
-
-    return { result: AUCTION_RESULT.WINNER, auction: updated, topBid, order, settlement };
-  }, { timeout: 15_000 });
+      return { result: AUCTION_RESULT.WINNER, auction: updated, topBid, order, settlement };
+    },
+    { timeout: 15_000 }
+  );
 
   if (outcome.skipped) return outcome;
 
@@ -415,27 +435,27 @@ async function finalizeAuction(auctionId, { req = null, trigger = 'system' } = {
       auction.sellerId,
       'Your auction ended — winner decided',
       `Auction ${auction.auctionNumber} ended with a winning bid of ₹${(topBid.bidPerKgPaise / 100).toFixed(2)}/kg.`,
-      auction.id,
+      auction.id
     );
     await notifyOrder(
       topBid.bidderId,
       'You won the auction!',
       `You won auction ${auction.auctionNumber} at ₹${(topBid.bidPerKgPaise / 100).toFixed(2)}/kg. Order ${order.orderNumber} is awaiting payment.`,
-      order.id,
+      order.id
     );
   } else if (result === AUCTION_RESULT.NO_BIDS) {
     await notifyAuction(
       auction.sellerId,
       'Your auction ended with no bids',
       `Auction ${auction.auctionNumber} ended without any bids.`,
-      auction.id,
+      auction.id
     );
   } else if (result === AUCTION_RESULT.RESERVE_NOT_MET) {
     await notifyAuction(
       auction.sellerId,
       'Your auction ended — reserve price not met',
       `Auction ${auction.auctionNumber} ended but the best bid did not reach your reserve price. The material was not awarded.`,
-      auction.id,
+      auction.id
     );
   }
 
@@ -445,12 +465,11 @@ async function finalizeAuction(auctionId, { req = null, trigger = 'system' } = {
       select: { id: true },
     });
     for (const admin of admins) {
-      // eslint-disable-next-line no-await-in-loop
       await notifyAuction(
         admin.id,
         'Auction finalized',
         `Auction ${auction.auctionNumber} ended (${result}).`,
-        auction.id,
+        auction.id
       );
     }
   } catch (err) {
@@ -506,12 +525,10 @@ async function tickAuctions() {
   try {
     const dueToStart = await auctionsRepo.findDueForActivation();
     for (const { id } of dueToStart) {
-      // eslint-disable-next-line no-await-in-loop
       await activateAuction(id);
     }
     const dueToEnd = await auctionsRepo.findDueForFinalization();
     for (const { id } of dueToEnd) {
-      // eslint-disable-next-line no-await-in-loop
       await finalizeAuction(id, { trigger: 'worker' });
     }
   } finally {

@@ -31,7 +31,12 @@ export default function Cart() {
   const setField = (k, v) => setDelivery((d) => ({ ...d, [k]: v }));
 
   const valid =
-    delivery.name && delivery.phone && delivery.address && delivery.city && delivery.state && delivery.postalCode;
+    delivery.name &&
+    delivery.phone &&
+    delivery.address &&
+    delivery.city &&
+    delivery.state &&
+    delivery.postalCode;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -71,9 +76,15 @@ export default function Cart() {
       <div className="mt-6 grid gap-8 lg:grid-cols-[1.6fr,1fr]">
         <div className="space-y-4">
           {items.map((i) => (
-            <div key={i.listingId} className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+            <div
+              key={i.listingId}
+              className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
+            >
               <div className="flex-1">
-                <Link to={`/marketplace/${i.listingId}`} className="font-semibold text-ink-900 hover:underline">
+                <Link
+                  to={`/marketplace/${i.listingId}`}
+                  className="font-semibold text-ink-900 hover:underline"
+                >
                   {i.title}
                 </Link>
                 <p className="text-sm text-ink-500">{paise(i.pricePerKgPaise)}/kg</p>
@@ -86,10 +97,16 @@ export default function Cart() {
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="w-20 text-center text-sm font-semibold">{i.weightKg} kg</span>
-                <button className="btn-secondary px-2 py-1" onClick={() => updateQty(i.listingId, i.weightKg + 10)}>
+                <button
+                  className="btn-secondary px-2 py-1"
+                  onClick={() => updateQty(i.listingId, i.weightKg + 10)}
+                >
                   <Plus className="h-4 w-4" />
                 </button>
-                <button className="btn p-2 text-red-500 hover:bg-red-50" onClick={() => remove(i.listingId)}>
+                <button
+                  className="btn p-2 text-red-500 hover:bg-red-50"
+                  onClick={() => remove(i.listingId)}
+                >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -102,33 +119,68 @@ export default function Cart() {
             <h2 className="font-semibold text-ink-900">Delivery details</h2>
             <div>
               <label className="label">Full name</label>
-              <input className="input" value={delivery.name} onChange={(e) => setField('name', e.target.value)} required />
+              <input
+                className="input"
+                value={delivery.name}
+                onChange={(e) => setField('name', e.target.value)}
+                required
+              />
             </div>
             <div>
               <label className="label">Phone</label>
-              <input className="input" value={delivery.phone} onChange={(e) => setField('phone', e.target.value)} required />
+              <input
+                className="input"
+                value={delivery.phone}
+                onChange={(e) => setField('phone', e.target.value)}
+                required
+              />
             </div>
             <div>
               <label className="label">Address</label>
-              <input className="input" value={delivery.address} onChange={(e) => setField('address', e.target.value)} required />
+              <input
+                className="input"
+                value={delivery.address}
+                onChange={(e) => setField('address', e.target.value)}
+                required
+              />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="label">City</label>
-                <input className="input" value={delivery.city} onChange={(e) => setField('city', e.target.value)} required />
+                <input
+                  className="input"
+                  value={delivery.city}
+                  onChange={(e) => setField('city', e.target.value)}
+                  required
+                />
               </div>
               <div>
                 <label className="label">State</label>
-                <input className="input" value={delivery.state} onChange={(e) => setField('state', e.target.value)} required />
+                <input
+                  className="input"
+                  value={delivery.state}
+                  onChange={(e) => setField('state', e.target.value)}
+                  required
+                />
               </div>
               <div>
                 <label className="label">PIN</label>
-                <input className="input" value={delivery.postalCode} onChange={(e) => setField('postalCode', e.target.value)} required />
+                <input
+                  className="input"
+                  value={delivery.postalCode}
+                  onChange={(e) => setField('postalCode', e.target.value)}
+                  required
+                />
               </div>
             </div>
             <div>
               <label className="label">Notes (optional)</label>
-              <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <textarea
+                className="input"
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
             </div>
           </div>
 
@@ -145,7 +197,9 @@ export default function Cart() {
               <span>Total</span>
               <span className="text-brand-700">{paise(subtotal + tax)}</span>
             </div>
-            <p className="text-xs text-ink-400">Final amounts are recomputed server-side on submission.</p>
+            <p className="text-xs text-ink-400">
+              Final amounts are recomputed server-side on submission.
+            </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button className="btn-primary w-full" disabled={!valid || placing}>
               {placing ? 'Submitting…' : 'Submit purchase request'}

@@ -17,8 +17,18 @@ router.post('/register', authLimiter, validate(authValidator.registerSchema), co
 router.post('/login', authLimiter, validate(authValidator.loginSchema), controller.login);
 router.post('/logout', optionalAuth, controller.logout);
 router.get('/me', protect, controller.me);
-router.post('/forgot-password', authLimiter, validate(authValidator.forgotPasswordSchema), controller.forgotPassword);
-router.post('/reset-password', authLimiter, validate(authValidator.resetPasswordSchema), controller.resetPassword);
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate(authValidator.forgotPasswordSchema),
+  controller.forgotPassword
+);
+router.post(
+  '/reset-password',
+  authLimiter,
+  validate(authValidator.resetPasswordSchema),
+  controller.resetPassword
+);
 router.post('/verify-email', validate(authValidator.verifyEmailSchema), controller.verifyEmail);
 router.get('/csrf', getCsrfToken);
 

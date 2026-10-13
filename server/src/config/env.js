@@ -24,7 +24,7 @@ const env = {
   // Matches the defaults in docker-compose.yml / .env.example (dev only).
   databaseUrl: required(
     'DATABASE_URL',
-    'postgresql://admin:adminpassword@localhost:5432/metalmundi',
+    'postgresql://admin:adminpassword@localhost:5432/metalmundi'
   ),
 
   jwtSecret: required('JWT_SECRET', 'dev-only-insecure-jwt-secret-change-me'),

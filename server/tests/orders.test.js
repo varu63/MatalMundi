@@ -12,11 +12,7 @@ async function cookieFor(user) {
 }
 
 async function party() {
-  const [buyer, buyer2, admin] = await Promise.all([
-    createUser(),
-    createUser(),
-    createAdmin(),
-  ]);
+  const [buyer, buyer2, admin] = await Promise.all([createUser(), createUser(), createAdmin()]);
   const [buyerCookie, buyer2Cookie, adminCookie] = await Promise.all([
     cookieFor(buyer),
     cookieFor(buyer2),

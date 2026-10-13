@@ -27,11 +27,16 @@ const { ROLES, DEFAULT_QUALITY_MULTIPLIERS } = require('../server/src/utils/cons
 
 const DEFAULT_CATEGORIES = [
   { name: 'Ferrous Scrap', icon: 'wrench', rates: { default: 18 }, example: 'MS scrap, cast iron' },
-  { name: 'Non-Ferrous Scrap', icon: 'copper', rates: { default: 95 }, example: 'aluminium, brass, copper' },
+  {
+    name: 'Non-Ferrous Scrap',
+    icon: 'copper',
+    rates: { default: 95 },
+    example: 'aluminium, brass, copper',
+  },
   {
     name: 'Plastics',
     icon: 'recycle',
-    rates: { default: 12, HDPE: 14, 'PP (Polypropylene)': 16, 'PET': 10 },
+    rates: { default: 12, HDPE: 14, 'PP (Polypropylene)': 16, PET: 10 },
     example: 'HDPE, PP, PET',
   },
   { name: 'Paper & Cardboard', icon: 'file', rates: { default: 6 }, example: 'cartons, newsprint' },
@@ -101,7 +106,9 @@ async function seedCategoriesAndPricing() {
         materialType: typeName || '',
         ratePerKgPaise: Math.round(ratePerKg * 100),
         qualityMultipliers: { ...DEFAULT_QUALITY_MULTIPLIERS },
-        basePickupChargePaise: Math.round((parseFloat(process.env.DEFAULT_BASE_PICKUP_CHARGE) || 500) * 100),
+        basePickupChargePaise: Math.round(
+          (parseFloat(process.env.DEFAULT_BASE_PICKUP_CHARGE) || 500) * 100
+        ),
         perKmChargePaise: Math.round((parseFloat(process.env.DEFAULT_PER_KM_CHARGE) || 12) * 100),
         platformFeePercent: parseFloat(process.env.DEFAULT_PLATFORM_FEE_PERCENT) || 5,
         taxPercent: parseFloat(process.env.DEFAULT_TAX_PERCENT) || 18,

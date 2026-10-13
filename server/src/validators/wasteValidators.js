@@ -21,7 +21,11 @@ const pickupSchema = z.object({
 const optionalRupees = (max = 10_000_000) =>
   z.preprocess(
     (v) => (v === '' || v === null || v === undefined ? undefined : v),
-    z.coerce.number().min(0, 'Price cannot be negative').max(max, 'Price looks too large').optional(),
+    z.coerce
+      .number()
+      .min(0, 'Price cannot be negative')
+      .max(max, 'Price looks too large')
+      .optional()
   );
 
 /**
@@ -57,7 +61,7 @@ const createSubmissionSchema = z
     reservePricePerKg: optionalRupees(),
     durationMinutes: z.preprocess(
       (v) => (v === '' || v === null || v === undefined ? undefined : v),
-      z.coerce.number().int().min(1).max(10_080).optional(),
+      z.coerce.number().int().min(1).max(10_080).optional()
     ),
     inspectionNotes: z.string().trim().max(1000).optional().default(''),
   })
@@ -71,10 +75,10 @@ const createSubmissionSchema = z
       });
     }
     if (
-      val.reservePricePerKg != null
-      && val.startingPricePerKg != null
-      && val.reservePricePerKg > 0
-      && val.reservePricePerKg < val.startingPricePerKg
+      val.reservePricePerKg != null &&
+      val.startingPricePerKg != null &&
+      val.reservePricePerKg > 0 &&
+      val.reservePricePerKg < val.startingPricePerKg
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

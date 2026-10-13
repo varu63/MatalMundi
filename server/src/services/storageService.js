@@ -34,7 +34,7 @@ function extFromMime(mimetype) {
   return EXT_BY_MIME[mimetype] || 'bin';
 }
 
-function uploadToCloudinary(buffer, { folder, mimetype }) {
+function uploadToCloudinary(buffer, { folder }) {
   const cld = getCloudinary();
   return new Promise((resolve, reject) => {
     const stream = cld.uploader.upload_stream(
@@ -51,7 +51,7 @@ function uploadToCloudinary(buffer, { folder, mimetype }) {
           publicId: result.public_id,
           provider: 'cloudinary',
         });
-      },
+      }
     );
     stream.on('error', reject);
     stream.end(buffer, 'binary');
@@ -109,7 +109,6 @@ async function deleteAssets(assets = []) {
   const list = Array.isArray(assets) ? assets : Object.values(assets);
   for (const asset of list) {
     if (asset && asset.publicId) {
-      // eslint-disable-next-line no-await-in-loop
       if (await deleteAsset(asset)) removed += 1;
     }
   }

@@ -35,7 +35,9 @@ export default function MyBids() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 p-5">
         <div>
           <h2 className="font-semibold text-ink-900">My bids</h2>
-          <p className="mt-0.5 text-xs text-ink-500">Every bid you placed, with its live standing.</p>
+          <p className="mt-0.5 text-xs text-ink-500">
+            Every bid you placed, with its live standing.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
@@ -82,14 +84,21 @@ export default function MyBids() {
                 {data.data.map((b) => (
                   <tr key={b.id} className="hover:bg-ink-50/50">
                     <td className="px-5 py-3">
-                      <Link to={`/auctions/${b.auction?.id}`} className="font-medium text-brand-700 hover:underline">
+                      <Link
+                        to={`/auctions/${b.auction?.id}`}
+                        className="font-medium text-brand-700 hover:underline"
+                      >
                         {b.auction?.auctionNumber}
                       </Link>
                     </td>
                     <td className="px-5 py-3">
                       <span className="flex items-center gap-2">
                         {firstImage(b.auction?.images) ? (
-                          <img src={firstImage(b.auction.images)} alt="" className="h-8 w-8 rounded object-cover" />
+                          <img
+                            src={firstImage(b.auction.images)}
+                            alt=""
+                            className="h-8 w-8 rounded object-cover"
+                          />
                         ) : null}
                         {b.auction?.materialType} · {kg(b.auction?.quantityKg)}
                       </span>

@@ -13,7 +13,7 @@ const {
 
 const MINI_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  'base64',
+  'base64'
 );
 
 async function createUser(overrides = {}, role = 'USER') {
@@ -82,7 +82,7 @@ async function attachImages(req, { weightEvidence = false } = {}) {
   for (const side of ['front', 'back', 'left', 'right']) {
     // Chain attach calls synchronously; awaiting each intermediates breaks
     // superagent's multipart body build.
-    // eslint-disable-next-line no-await-in-loop
+
     req = req.attach(side, MINI_PNG, `${side}.png`);
   }
   if (weightEvidence) {
@@ -152,7 +152,9 @@ async function pipelineToCollected(submission, admin) {
     sourceSubmissionId: submissionId,
     sellerId: submission.sellerId || submission.seller?._id || submission.seller,
     materialCategoryId:
-      submission.materialCategoryId || submission.materialCategory?._id || submission.materialCategory,
+      submission.materialCategoryId ||
+      submission.materialCategory?._id ||
+      submission.materialCategory,
     materialType: submission.materialType,
     qualityGrade: submission.qualityGrade,
     condition: submission.condition,
@@ -173,7 +175,7 @@ async function pipelineToCollected(submission, admin) {
   return { submission, lot };
 }
 
-async function createPublishedListing({ submission, lot, agent, admin, overrides = {} }) {
+async function createPublishedListing({ submission, agent, overrides = {} }) {
   const submissionId = submission.id || submission._id;
   const res = await agent
     .post(`/api/v1/admin/waste-submissions/${submissionId}/publish`)

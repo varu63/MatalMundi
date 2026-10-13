@@ -82,7 +82,16 @@ async function findById(id, { variant = 'minimal' } = {}) {
   return prisma.wasteSubmission.findUnique({ where: { id }, include: includeFor(variant) });
 }
 
-async function list({ status, categoryId, sellerId, search, saleMode, skip = 0, take = 12, variant = 'minimal' } = {}) {
+async function list({
+  status,
+  categoryId,
+  sellerId,
+  search,
+  saleMode,
+  skip = 0,
+  take = 12,
+  variant = 'minimal',
+} = {}) {
   const where = {};
   if (status) where.status = status;
   if (categoryId) where.materialCategoryId = categoryId;

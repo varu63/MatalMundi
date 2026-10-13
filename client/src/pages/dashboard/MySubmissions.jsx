@@ -57,7 +57,11 @@ export default function MySubmissions() {
                     <td className="px-5 py-3">
                       <span className="flex items-center gap-2">
                         {firstImage(s.images) ? (
-                          <img src={firstImage(s.images)} alt="" className="h-8 w-8 rounded object-cover" />
+                          <img
+                            src={firstImage(s.images)}
+                            alt=""
+                            className="h-8 w-8 rounded object-cover"
+                          />
                         ) : null}
                         {s.materialType}
                       </span>

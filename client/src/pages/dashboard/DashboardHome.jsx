@@ -12,10 +12,7 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      endpoints.submissions.my({ limit: 4 }),
-      endpoints.orders.my({ limit: 4 }),
-    ])
+    Promise.all([endpoints.submissions.my({ limit: 4 }), endpoints.orders.my({ limit: 4 })])
       .then(([s, o]) => {
         setSubs(s.data.data || []);
         setOrders(o.data.data || []);
@@ -26,7 +23,9 @@ export default function DashboardHome() {
 
   if (loading) return <Spinner label="Loading dashboard…" />;
 
-  const paid = subs.filter((s) => s.valuation?.estimatedPayoutPaise).reduce((sum, s) => sum + s.valuation.estimatedPayoutPaise, 0);
+  const paid = subs
+    .filter((s) => s.valuation?.estimatedPayoutPaise)
+    .reduce((sum, s) => sum + s.valuation.estimatedPayoutPaise, 0);
 
   return (
     <div className="space-y-6">
@@ -42,7 +41,11 @@ export default function DashboardHome() {
         <div className="card p-5">
           <p className="text-sm text-ink-500">Active orders</p>
           <p className="mt-1 text-2xl font-bold text-ink-900">
-            {orders.filter((o) => !['DELIVERED', 'CANCELLED', 'REJECTED_BY_ADMIN'].includes(o.status)).length}
+            {
+              orders.filter(
+                (o) => !['DELIVERED', 'CANCELLED', 'REJECTED_BY_ADMIN'].includes(o.status)
+              ).length
+            }
           </p>
         </div>
       </div>
@@ -53,7 +56,10 @@ export default function DashboardHome() {
             <h2 className="flex items-center gap-2 font-semibold text-ink-900">
               <TrendingUp className="h-4 w-4 text-brand-600" /> Recent submissions
             </h2>
-            <Link to="/dashboard/submissions" className="text-sm font-medium text-brand-700 hover:underline">
+            <Link
+              to="/dashboard/submissions"
+              className="text-sm font-medium text-brand-700 hover:underline"
+            >
               View all
             </Link>
           </div>
@@ -84,19 +90,28 @@ export default function DashboardHome() {
         <section className="card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-ink-900">Recent orders</h2>
-            <Link to="/dashboard/orders" className="text-sm font-medium text-brand-700 hover:underline">
+            <Link
+              to="/dashboard/orders"
+              className="text-sm font-medium text-brand-700 hover:underline"
+            >
               View all
             </Link>
           </div>
           {orders.length === 0 ? (
-            <EmptyRow text="No purchase requests yet." to="/marketplace" action="Browse marketplace" />
+            <EmptyRow
+              text="No purchase requests yet."
+              to="/marketplace"
+              action="Browse marketplace"
+            />
           ) : (
             <ul className="divide-y divide-ink-100">
               {orders.map((o) => (
                 <li key={o.id} className="flex items-center justify-between gap-3 py-3">
                   <div>
                     <p className="text-sm font-semibold text-ink-800">{o.orderNumber}</p>
-                    <p className="text-xs text-ink-500">{paise(o.totalPaise)} · {dateTime(o.createdAt)}</p>
+                    <p className="text-xs text-ink-500">
+                      {paise(o.totalPaise)} · {dateTime(o.createdAt)}
+                    </p>
                   </div>
                   <StatusBadge status={o.status} />
                 </li>

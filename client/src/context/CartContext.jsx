@@ -20,16 +20,13 @@ export function CartProvider({ children }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
-  const add = useCallback(
-    (item) => {
-      setItems((prev) => {
-        const next = [...prev.filter((i) => i.listingId !== item.listingId), item];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-    },
-    [],
-  );
+  const add = useCallback((item) => {
+    setItems((prev) => {
+      const next = [...prev.filter((i) => i.listingId !== item.listingId), item];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const remove = useCallback((listingId) => {
     setItems((prev) => {
@@ -71,7 +68,9 @@ export function CartProvider({ children }) {
   const count = useMemo(() => items.reduce((s, i) => s + (i.weightKg || 0), 0), [items]);
 
   return (
-    <CartContext.Provider value={{ items, add, remove, updateQty, clear, placeOrder, count, persist }}>
+    <CartContext.Provider
+      value={{ items, add, remove, updateQty, clear, placeOrder, count, persist }}
+    >
       {children}
     </CartContext.Provider>
   );

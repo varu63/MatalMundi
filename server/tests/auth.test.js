@@ -108,9 +108,7 @@ describe('Authentication & password hashing', () => {
     });
     expect(login.status).toBe(200);
 
-    const me = await request(app)
-      .get('/api/v1/auth/me')
-      .set('Cookie', login.headers['set-cookie']);
+    const me = await request(app).get('/api/v1/auth/me').set('Cookie', login.headers['set-cookie']);
     expect(me.status).toBe(200);
     expect(me.body.data.user.email).toBe('works@example.com');
   });

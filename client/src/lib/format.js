@@ -4,12 +4,22 @@ export const paise = (n) =>
 export const kg = (n) => `${Number(n ?? 0).toLocaleString('en-IN')} kg`;
 
 export const dateTime = (v) =>
-  new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  new Date(v).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 export const dateOnly = (v) =>
   new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-export const titleCase = (s) => String(s || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+export const titleCase = (s) =>
+  String(s || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const statusTone = (status) => {
   const s = String(status || '').toUpperCase();

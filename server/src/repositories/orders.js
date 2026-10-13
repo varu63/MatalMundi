@@ -42,9 +42,7 @@ async function findDetail(id, { buyerFull = false } = {}) {
           include: { materialCategory: { select: { id: true, name: true, slug: true } } },
         })
       : [],
-    lotIds.length
-      ? prisma.inventoryLot.findMany({ where: { id: { in: lotIds } } })
-      : [],
+    lotIds.length ? prisma.inventoryLot.findMany({ where: { id: { in: lotIds } } }) : [],
   ]);
 
   row._listingMap = Object.fromEntries(listingRows.map((l) => [l.id, l]));

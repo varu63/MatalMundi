@@ -35,13 +35,7 @@ const SUBMISSION_TRANSITIONS = Object.freeze({
 });
 
 const QUALITY_GRADES = Object.freeze(['A', 'B', 'C', 'D']);
-const MATERIAL_CONDITIONS = Object.freeze([
-  'LOOSE',
-  'BALED',
-  'SHREDDED',
-  'MIXED',
-  'USED',
-]);
+const MATERIAL_CONDITIONS = Object.freeze(['LOOSE', 'BALED', 'SHREDDED', 'MIXED', 'USED']);
 
 const DEMAND_BASIS = Object.freeze({ TOTAL: 'TOTAL', PER_KG: 'PER_KG' });
 
@@ -169,10 +163,7 @@ const AUCTION_STATUS = Object.freeze({
 const AUCTION_STATUS_VALUES = Object.values(AUCTION_STATUS);
 
 // Statuses where the auction is publicly visible on the marketplace.
-const AUCTION_PUBLIC_STATUSES = [
-  AUCTION_STATUS.SCHEDULED,
-  AUCTION_STATUS.ACTIVE,
-];
+const AUCTION_PUBLIC_STATUSES = [AUCTION_STATUS.SCHEDULED, AUCTION_STATUS.ACTIVE];
 
 // Late lifecycle: a winner exists and payment/pickup are being handled.
 const AUCTION_WON_STATUSES = [

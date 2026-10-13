@@ -3,7 +3,7 @@ import { Camera, CloudUpload, Gavel, Package, Sparkles, Scale } from 'lucide-rea
 import { endpoints, handleError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { paise, kg } from '../../lib/format';
+import { paise } from '../../lib/format';
 
 const CONDITIONS = ['LOOSE', 'BALED', 'SHREDDED', 'MIXED', 'USED'];
 const GRADES = ['A', 'B', 'C', 'D'];
@@ -56,13 +56,18 @@ export default function SubmitWaste() {
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(0);
 
   const isAuction = saleMode === 'AUCTION';
 
   useEffect(() => {
-    endpoints.categories.list().then((r) => setCategories(r.data.data.categories || [])).catch(() => {});
-    endpoints.auctions.settings().then((r) => setAuctionSettings(r.data.data.settings)).catch(() => {});
+    endpoints.categories
+      .list()
+      .then((r) => setCategories(r.data.data.categories || []))
+      .catch(() => {});
+    endpoints.auctions
+      .settings()
+      .then((r) => setAuctionSettings(r.data.data.settings))
+      .catch(() => {});
   }, []);
 
   const categoriesWithPricing = useMemo(() => categories, [categories]);
@@ -81,7 +86,8 @@ export default function SubmitWaste() {
     if (file) setImages((imgs) => ({ ...imgs, [key]: file }));
   };
 
-  const canEstimate = form.materialCategory && form.materialType && form.quantityKg && form.qualityGrade;
+  const canEstimate =
+    form.materialCategory && form.materialType && form.quantityKg && form.qualityGrade;
 
   const runEstimate = useCallback(async () => {
     if (!canEstimate) return;
@@ -117,34 +123,49 @@ export default function SubmitWaste() {
       fd.append('condition', form.condition);
       fd.append('qualityGrade', form.qualityGrade);
       fd.append('description', form.description);
-      fd.append('pickup', JSON.stringify({
-        address: form.address,
-        city: form.city,
-        state: form.state,
-        postalCode: form.postalCode,
-        contactName: form.contactName,
-        contactPhone: form.contactPhone,
-      }));
+      fd.append(
+        'pickup',
+        JSON.stringify({
+          address: form.address,
+          city: form.city,
+          state: form.state,
+          postalCode: form.postalCode,
+          contactName: form.contactName,
+          contactPhone: form.contactPhone,
+        })
+      );
       fd.append('demandBasis', form.demandBasis);
       fd.append('demandedPrice', String(form.demandedPrice || 0));
       fd.append('comments', form.comments);
       for (const side of IMAGE_SIDES) {
         const file = images[side.key];
-        if (!file) throw Object.assign(new Error(`Please add the ${side.label} photo.`), { skipToast: true });
+        if (!file)
+          throw Object.assign(new Error(`Please add the ${side.label} photo.`), {
+            skipToast: true,
+          });
         fd.append(side.key, file);
       }
       if (isAuction) {
         if (!auction.startingPricePerKg) {
-          throw Object.assign(new Error('Please set a starting price per kg for the auction.'), { skipToast: true });
+          throw Object.assign(new Error('Please set a starting price per kg for the auction.'), {
+            skipToast: true,
+          });
         }
         if (!images.weightEvidence) {
-          throw Object.assign(new Error('Please add the weight-evidence photo (weighbridge slip or scale reading).'), { skipToast: true });
+          throw Object.assign(
+            new Error('Please add the weight-evidence photo (weighbridge slip or scale reading).'),
+            { skipToast: true }
+          );
         }
         fd.append('startingPricePerKg', String(auction.startingPricePerKg));
-        if (auction.expectedPricePerKg) fd.append('expectedPricePerKg', String(auction.expectedPricePerKg));
-        if (auction.minAcceptablePerKg) fd.append('minAcceptablePerKg', String(auction.minAcceptablePerKg));
-        if (auction.reservePricePerKg) fd.append('reservePricePerKg', String(auction.reservePricePerKg));
-        if (canChooseDuration && auction.durationMinutes) fd.append('durationMinutes', String(auction.durationMinutes));
+        if (auction.expectedPricePerKg)
+          fd.append('expectedPricePerKg', String(auction.expectedPricePerKg));
+        if (auction.minAcceptablePerKg)
+          fd.append('minAcceptablePerKg', String(auction.minAcceptablePerKg));
+        if (auction.reservePricePerKg)
+          fd.append('reservePricePerKg', String(auction.reservePricePerKg));
+        if (canChooseDuration && auction.durationMinutes)
+          fd.append('durationMinutes', String(auction.durationMinutes));
         if (auction.inspectionNotes) fd.append('inspectionNotes', auction.inspectionNotes);
         fd.append('weightEvidence', images.weightEvidence);
       }
@@ -153,7 +174,7 @@ export default function SubmitWaste() {
       toast.success(
         body.auction
           ? `Auction ${body.auction.auctionNumber} created — pending approval`
-          : `Submission ${body.submission.submissionNumber} created`,
+          : `Submission ${body.submission.submissionNumber} created`
       );
       setForm(EMPTY);
       setAuction(EMPTY_AUCTION);
@@ -199,8 +220,8 @@ export default function SubmitWaste() {
                 <Gavel className="h-4 w-4 text-brand-600" /> Bidding auction
               </span>
               <span className="mt-1 block text-xs text-ink-500">
-                Let buyers bid in real time. Minimum{' '}
-                {auctionSettings?.minAuctionQuantityKg || 500} kg — you set the starting price.
+                Let buyers bid in real time. Minimum {auctionSettings?.minAuctionQuantityKg || 500}{' '}
+                kg — you set the starting price.
               </span>
             </button>
           </div>
@@ -211,7 +232,12 @@ export default function SubmitWaste() {
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Material category</label>
-              <select className="input" value={form.materialCategory} onChange={set('materialCategory')} required>
+              <select
+                className="input"
+                value={form.materialCategory}
+                onChange={set('materialCategory')}
+                required
+              >
                 <option value="">Select category</option>
                 {categoriesWithPricing.map((c) => (
                   <option key={c._id} value={c._id}>
@@ -222,11 +248,24 @@ export default function SubmitWaste() {
             </div>
             <div>
               <label className="label">Material type</label>
-              <input className="input" value={form.materialType} onChange={set('materialType')} placeholder="e.g. MS Scrap" required />
+              <input
+                className="input"
+                value={form.materialType}
+                onChange={set('materialType')}
+                placeholder="e.g. MS Scrap"
+                required
+              />
             </div>
             <div>
               <label className="label">Quantity (kg)</label>
-              <input type="number" className="input" min={minQuantity} value={form.quantityKg} onChange={set('quantityKg')} required />
+              <input
+                type="number"
+                className="input"
+                min={minQuantity}
+                value={form.quantityKg}
+                onChange={set('quantityKg')}
+                required
+              />
               <p className="mt-1 text-xs text-ink-400">
                 {isAuction
                   ? `Auctions require at least ${auctionSettings?.minAuctionQuantityKg || 500} kg.`
@@ -261,13 +300,28 @@ export default function SubmitWaste() {
               </select>
             </div>
             <div>
-              <label className="label">Demanded price ({form.demandBasis === 'PER_KG' ? '₹/kg' : '₹'})</label>
-              <input type="number" className="input" min="0" value={form.demandedPrice} onChange={set('demandedPrice')} />
+              <label className="label">
+                Demanded price ({form.demandBasis === 'PER_KG' ? '₹/kg' : '₹'})
+              </label>
+              <input
+                type="number"
+                className="input"
+                min="0"
+                value={form.demandedPrice}
+                onChange={set('demandedPrice')}
+              />
             </div>
           </div>
           <div className="mt-4">
             <label className="label">Description</label>
-            <textarea className="input" rows={3} value={form.description} onChange={set('description')} placeholder="Describe the material, contamination, sorting…" required />
+            <textarea
+              className="input"
+              rows={3}
+              value={form.description}
+              onChange={set('description')}
+              placeholder="Describe the material, contamination, sorting…"
+              required
+            />
           </div>
         </div>
 
@@ -331,7 +385,11 @@ export default function SubmitWaste() {
               {canChooseDuration ? (
                 <div>
                   <label className="label">Auction duration</label>
-                  <select className="input" value={auction.durationMinutes} onChange={setAuctionField('durationMinutes')}>
+                  <select
+                    className="input"
+                    value={auction.durationMinutes}
+                    onChange={setAuctionField('durationMinutes')}
+                  >
                     <option value="">
                       Default ({auctionSettings?.defaultDurationMinutes || 30} minutes)
                     </option>
@@ -381,15 +439,32 @@ export default function SubmitWaste() {
             </div>
             <div>
               <label className="label">Postal code</label>
-              <input className="input" value={form.postalCode} onChange={set('postalCode')} required />
+              <input
+                className="input"
+                value={form.postalCode}
+                onChange={set('postalCode')}
+                required
+              />
             </div>
             <div>
               <label className="label">Contact name</label>
-              <input className="input" value={form.contactName} onChange={set('contactName')} placeholder={user?.name} required />
+              <input
+                className="input"
+                value={form.contactName}
+                onChange={set('contactName')}
+                placeholder={user?.name}
+                required
+              />
             </div>
             <div>
               <label className="label">Contact phone</label>
-              <input className="input" value={form.contactPhone} onChange={set('contactPhone')} placeholder={user?.phone} required />
+              <input
+                className="input"
+                value={form.contactPhone}
+                onChange={set('contactPhone')}
+                placeholder={user?.phone}
+                required
+              />
             </div>
             <div>
               <label className="label">Comments (optional)</label>
@@ -409,14 +484,23 @@ export default function SubmitWaste() {
             {IMAGE_SIDES.map((s) => (
               <label key={s.key} className="group cursor-pointer">
                 {images[s.key] ? (
-                  <img src={URL.createObjectURL(images[s.key])} alt={s.label} className="h-28 w-full rounded-lg object-cover ring-2 ring-brand-500" />
+                  <img
+                    src={URL.createObjectURL(images[s.key])}
+                    alt={s.label}
+                    className="h-28 w-full rounded-lg object-cover ring-2 ring-brand-500"
+                  />
                 ) : (
                   <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-ink-300 text-ink-400 transition group-hover:border-brand-400 group-hover:text-brand-600">
                     <CloudUpload className="h-6 w-6" />
                     <span className="text-xs">{s.label}</span>
                   </div>
                 )}
-                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile(s.key)} />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={onFile(s.key)}
+                />
               </label>
             ))}
           </div>
@@ -430,11 +514,20 @@ export default function SubmitWaste() {
                 </span>
               </span>
               {images.weightEvidence ? (
-                <img src={URL.createObjectURL(images.weightEvidence)} alt="Weight evidence" className="h-14 w-14 rounded object-cover ring-2 ring-brand-500" />
+                <img
+                  src={URL.createObjectURL(images.weightEvidence)}
+                  alt="Weight evidence"
+                  className="h-14 w-14 rounded object-cover ring-2 ring-brand-500"
+                />
               ) : (
                 <span className="chip bg-white text-brand-700">Upload</span>
               )}
-              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile('weightEvidence')} />
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={onFile('weightEvidence')}
+              />
             </label>
           )}
         </div>
@@ -458,7 +551,12 @@ export default function SubmitWaste() {
             <Sparkles className="h-4 w-4 text-brand-600" /> Instant valuation
           </h3>
           <p className="mt-1 text-xs text-ink-500">Preview what your material may be worth.</p>
-          <button type="button" className="btn-secondary mt-4 w-full" disabled={!canEstimate || estimateLoading} onClick={runEstimate}>
+          <button
+            type="button"
+            className="btn-secondary mt-4 w-full"
+            disabled={!canEstimate || estimateLoading}
+            onClick={runEstimate}
+          >
             {estimateLoading ? 'Computing…' : 'Get estimate'}
           </button>
           {estimation && (
@@ -470,9 +568,6 @@ export default function SubmitWaste() {
                 <span>Est. payout</span>
                 <span>{paise(estimation.estimatedPayoutPaise)}</span>
               </div>
-              <button className="text-xs" onClick={() => setPreview(0)}>
-                for {kg(estimation.quantityKg)} @ {form.qualityGrade}
-              </button>
             </div>
           )}
         </div>

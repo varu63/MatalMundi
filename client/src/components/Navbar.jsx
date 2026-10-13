@@ -40,7 +40,10 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link to="/cart" className="relative rounded-lg p-2 text-ink-600 transition hover:bg-ink-100">
+          <Link
+            to="/cart"
+            className="relative rounded-lg p-2 text-ink-600 transition hover:bg-ink-100"
+          >
             <ShoppingCart className="h-5 w-5" />
             {itemCount > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-bold text-white">
@@ -54,7 +57,9 @@ export default function Navbar() {
               <div className="relative">
                 <button className="flex items-center gap-1.5 rounded-lg p-2 text-ink-600 transition hover:bg-ink-100">
                   <User className="h-5 w-5" />
-                  <span className="hidden text-sm font-medium sm:block">{user.name.split(' ')[0]}</span>
+                  <span className="hidden text-sm font-medium sm:block">
+                    {user.name.split(' ')[0]}
+                  </span>
                 </button>
               </div>
               <button

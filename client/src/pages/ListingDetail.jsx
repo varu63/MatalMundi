@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Package, ArrowLeft, ShoppingCart, AlertCircle } from 'lucide-react';
 import { endpoints, handleError } from '../lib/api';
-import { paise, kg, firstImage, titleCase, imageUrl } from '../lib/format';
+import { paise, kg, titleCase, imageUrl } from '../lib/format';
 import Spinner from '../components/Spinner';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -70,14 +70,22 @@ export default function ListingDetail() {
       setError(`Only ${maxQty} kg is currently available.`);
       return;
     }
-    add({ listingId: listing.id, title: listing.title, pricePerKgPaise: listing.pricePerKgPaise, weightKg: w });
+    add({
+      listingId: listing.id,
+      title: listing.title,
+      pricePerKgPaise: listing.pricePerKgPaise,
+      weightKg: w,
+    });
     toast.success(`Added ${w} kg to your cart`);
     navigate('/cart');
   };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <Link to="/marketplace" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
+      <Link
+        to="/marketplace"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"
+      >
         <ArrowLeft className="h-4 w-4" /> Back to marketplace
       </Link>
 
@@ -86,7 +94,11 @@ export default function ListingDetail() {
           <div className="card overflow-hidden">
             <div className="aspect-[4/3] bg-ink-100">
               {images[activeImg]?.url ? (
-                <img src={imageUrl(images[activeImg])} alt={listing.title} className="h-full w-full object-cover" />
+                <img
+                  src={imageUrl(images[activeImg])}
+                  alt={listing.title}
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-ink-300">No image</div>
               )}
@@ -119,8 +131,13 @@ export default function ListingDetail() {
 
           <div className="card p-5">
             <div className="flex items-end justify-between">
-              <span className="text-3xl font-extrabold text-brand-700">{paise(listing.pricePerKgPaise)}<span className="text-lg">/kg</span></span>
-              <span className="chip bg-ink-100 text-ink-700">{kg(listing.availableQuantityKg)} available</span>
+              <span className="text-3xl font-extrabold text-brand-700">
+                {paise(listing.pricePerKgPaise)}
+                <span className="text-lg">/kg</span>
+              </span>
+              <span className="chip bg-ink-100 text-ink-700">
+                {kg(listing.availableQuantityKg)} available
+              </span>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <div>
@@ -197,8 +214,8 @@ export default function ListingDetail() {
         <div className="mt-4 flex items-start gap-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-800">
           <Package className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            This lot has been inspected by MetalMundi. A purchase request is reviewed by our team before dispatch —
-            stock is reserved only once your request is accepted.
+            This lot has been inspected by MetalMundi. A purchase request is reviewed by our team
+            before dispatch — stock is reserved only once your request is accepted.
           </span>
         </div>
       </div>

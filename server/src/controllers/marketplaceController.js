@@ -35,8 +35,10 @@ const listListings = asyncHandler(async (req, res) => {
   // Price filters are given in whole rupees by the UI.
   if (req.query.minPrice || req.query.maxPrice) {
     where.pricePerKgPaise = {};
-    if (req.query.minPrice) where.pricePerKgPaise.gte = Math.round(Number(req.query.minPrice) * 100);
-    if (req.query.maxPrice) where.pricePerKgPaise.lte = Math.round(Number(req.query.maxPrice) * 100);
+    if (req.query.minPrice)
+      where.pricePerKgPaise.gte = Math.round(Number(req.query.minPrice) * 100);
+    if (req.query.maxPrice)
+      where.pricePerKgPaise.lte = Math.round(Number(req.query.maxPrice) * 100);
   }
   if (req.query.minQuantity) {
     where.availableQuantityKg.gte = Number(req.query.minQuantity);

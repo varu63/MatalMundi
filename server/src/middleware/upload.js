@@ -11,7 +11,9 @@ const storage = multer.memoryStorage();
 
 function fileFilter(_req, file, cb) {
   if (ALLOWED_MIME.includes(file.mimetype)) return cb(null, true);
-  return cb(ApiError.badRequest(`Unsupported image type: ${file.mimetype}. Use JPEG, PNG or WebP.`));
+  return cb(
+    ApiError.badRequest(`Unsupported image type: ${file.mimetype}. Use JPEG, PNG or WebP.`)
+  );
 }
 
 const upload = multer({

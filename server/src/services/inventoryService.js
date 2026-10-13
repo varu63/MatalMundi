@@ -7,10 +7,22 @@ const movementsRepo = require('../repositories/movements');
 const ApiError = require('../utils/ApiError');
 const logger = require('../utils/logger');
 const { generateReference } = require('../utils/idGenerator');
-const { INVENTORY_LOT_STATUS, INVENTORY_MOVEMENT_TYPE, LISTING_STATUS } = require('../utils/constants');
+const {
+  INVENTORY_LOT_STATUS,
+  INVENTORY_MOVEMENT_TYPE,
+  LISTING_STATUS,
+} = require('../utils/constants');
 
 /** Records an inventory movement row (best-effort; never blocks the caller). */
-async function recordMovement({ lot, type, quantityKg, lotSnapshot, reason = '', order = null, actor = null }) {
+async function recordMovement({
+  lot,
+  type,
+  quantityKg,
+  lotSnapshot,
+  reason = '',
+  order = null,
+  actor = null,
+}) {
   try {
     const lotId = (typeof lot === 'object' && lot && lot.id) || lot || lotSnapshot?.id;
     await movementsRepo.create({
@@ -34,9 +46,10 @@ async function recordMovement({ lot, type, quantityKg, lotSnapshot, reason = '',
  * quantity (set by the admin at collection) becomes the sellable quantity.
  */
 async function createLotFromSubmission({ submission, actor }) {
-  const accepted = Number(submission.acceptedQuantityKg) > 0
-    ? Number(submission.acceptedQuantityKg)
-    : Number(submission.quantityKg);
+  const accepted =
+    Number(submission.acceptedQuantityKg) > 0
+      ? Number(submission.acceptedQuantityKg)
+      : Number(submission.quantityKg);
 
   const pickup = submission.pickup || {};
   const lot = await lotsRepo.create({
@@ -116,7 +129,13 @@ async function reserveLot({ lotId, quantityKg, orderId = null, actor = null }) {
 }
 
 /** Atomically releases a reservation back to available stock. */
-async function releaseLot({ lotId, quantityKg, orderId = null, actor = null, reason = 'Reservation released' }) {
+async function releaseLot({
+  lotId,
+  quantityKg,
+  orderId = null,
+  actor = null,
+  reason = 'Reservation released',
+}) {
   const qty = Number(quantityKg);
   if (!(qty > 0)) return null;
 
@@ -173,7 +192,7 @@ async function reserveOrderItems(items, orderId, actor = null) {
   try {
     for (const item of items) {
       // Sequential on purpose: deterministic rollback, and reservations are cheap.
-      // eslint-disable-next-line no-await-in-loop
+
       await reserveLot({
         lotId: item.inventoryLot,
         quantityKg: item.weightKg,
@@ -185,7 +204,6 @@ async function reserveOrderItems(items, orderId, actor = null) {
     return reserved;
   } catch (err) {
     for (const item of reserved) {
-      // eslint-disable-next-line no-await-in-loop
       await releaseLot({
         lotId: item.inventoryLot,
         quantityKg: item.weightKg,
@@ -198,16 +216,25 @@ async function reserveOrderItems(items, orderId, actor = null) {
   }
 }
 
-async function releaseOrderItems(items, orderId, actor = null, reason = 'Order reservation released') {
+async function releaseOrderItems(
+  items,
+  orderId,
+  actor = null,
+  reason = 'Order reservation released'
+) {
   for (const item of items) {
-    // eslint-disable-next-line no-await-in-loop
-    await releaseLot({ lotId: item.inventoryLot, quantityKg: item.weightKg, orderId, actor, reason });
+    await releaseLot({
+      lotId: item.inventoryLot,
+      quantityKg: item.weightKg,
+      orderId,
+      actor,
+      reason,
+    });
   }
 }
 
 async function commitOrderItems(items, orderId, actor = null) {
   for (const item of items) {
-    // eslint-disable-next-line no-await-in-loop
     await commitLot({ lotId: item.inventoryLot, quantityKg: item.weightKg, orderId, actor });
   }
 }

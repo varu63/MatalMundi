@@ -4,7 +4,6 @@ function ts() {
   return new Date().toISOString();
 }
 
-/* eslint-disable no-console */
 const logger = {
   info: (...args) => console.log(`[${ts()}] [INFO]`, ...args),
   warn: (...args) => console.warn(`[${ts()}] [WARN]`, ...args),

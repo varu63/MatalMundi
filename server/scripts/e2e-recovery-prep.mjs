@@ -12,7 +12,7 @@ const RUN = Date.now().toString(36);
 
 const MINI_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  'base64',
+  'base64'
 );
 
 function makeJar() {
@@ -61,7 +61,8 @@ async function main() {
     defaultDurationMinutes: DURATION,
     allowedDurationsMinutes: [DURATION],
   });
-  if (relaxed.status !== 200) throw new Error(`settings relax failed: ${JSON.stringify(relaxed.json)}`);
+  if (relaxed.status !== 200)
+    throw new Error(`settings relax failed: ${JSON.stringify(relaxed.json)}`);
 
   await sellerJ.primeCsrf();
   const email = `recovery-seller-${RUN}@e2e.dev`;
@@ -102,13 +103,17 @@ async function main() {
     fd.append(side, new Blob([MINI_PNG], { type: 'image/png' }), `${side}.png`);
   }
   const sub = await sellerJ.postForm('/waste-submissions', fd);
-  if (sub.status !== 201) throw new Error(`submission failed: ${JSON.stringify(sub.json).slice(0, 300)}`);
+  if (sub.status !== 201)
+    throw new Error(`submission failed: ${JSON.stringify(sub.json).slice(0, 300)}`);
 
   const mine = await sellerJ.get('/auctions/my');
   const auction = mine.json.data[0];
 
-  const approve = await adminJ.post(`/admin/auctions/${auction.id}/approve`, { durationMinutes: DURATION });
-  if (approve.status !== 200) throw new Error(`approve failed: ${JSON.stringify(approve.json).slice(0, 300)}`);
+  const approve = await adminJ.post(`/admin/auctions/${auction.id}/approve`, {
+    durationMinutes: DURATION,
+  });
+  if (approve.status !== 200)
+    throw new Error(`approve failed: ${JSON.stringify(approve.json).slice(0, 300)}`);
 
   // Restore the platform settings right away — the auction keeps its 1-minute duration.
   const restore = await adminJ.patch('/admin/auction-settings', {
@@ -116,7 +121,8 @@ async function main() {
     defaultDurationMinutes: original.defaultDurationMinutes,
     allowedDurationsMinutes: original.allowedDurationsMinutes,
   });
-  if (restore.status !== 200) throw new Error(`settings restore failed: ${JSON.stringify(restore.json)}`);
+  if (restore.status !== 200)
+    throw new Error(`settings restore failed: ${JSON.stringify(restore.json)}`);
 
   const live = approve.json.data.auction;
   console.log(`AUCTION_ID=${live.id}`);

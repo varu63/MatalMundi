@@ -12,11 +12,7 @@ async function cookieFor(user) {
 }
 
 async function party() {
-  const [seller, buyer, admin] = await Promise.all([
-    createUser(),
-    createUser(),
-    createAdmin(),
-  ]);
+  const [seller, buyer, admin] = await Promise.all([createUser(), createUser(), createAdmin()]);
   const [sCookie, bCookie, aCookie] = await Promise.all([
     cookieFor(seller),
     cookieFor(buyer),
@@ -127,7 +123,6 @@ describe('Full seller → admin → buyer workflow', () => {
 
     // 10. Move the order to delivered — reservation commits to sold.
     for (const st of ['CONFIRMED', 'PROCESSING', 'READY_FOR_DISPATCH', 'DISPATCHED', 'DELIVERED']) {
-      // eslint-disable-next-line no-await-in-loop
       const r = await request(app)
         .patch(`/api/v1/admin/orders/${orderId}/status`)
         .set('Cookie', aCookie)

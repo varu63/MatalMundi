@@ -13,11 +13,7 @@ const { notifyOrder } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
 const { generateReference } = require('../utils/idGenerator');
 const { parsePage } = require('../utils/numbers');
-const {
-  ORDER_STATUS,
-  ROLES,
-  AUDIT_ACTION,
-} = require('../utils/constants');
+const { ORDER_STATUS, ROLES, AUDIT_ACTION } = require('../utils/constants');
 const env = require('../config/env');
 
 /**
@@ -31,7 +27,6 @@ const createOrder = asyncHandler(async (req, res) => {
   // Collapse duplicate listing ids and validate against live, sellable stock.
   const resolved = [];
   for (const item of requestedItems) {
-    // eslint-disable-next-line no-await-in-loop
     const listing = await listingsRepo.findSellableById(item.listingId);
 
     if (!listing) {
@@ -39,7 +34,7 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     // Authoritative stock check against the inventory lot.
-    // eslint-disable-next-line no-await-in-loop
+
     const lot = await lotsRepo.findById(listing.inventoryLotId);
     if (!lot) throw ApiError.conflict('Inventory for a selected material is unavailable');
 
@@ -47,12 +42,12 @@ const createOrder = asyncHandler(async (req, res) => {
     if (weightKg <= 0) throw ApiError.badRequest('Weight must be greater than zero');
     if (listing.minPurchaseKg > 0 && weightKg < listing.minPurchaseKg) {
       throw ApiError.badRequest(
-        `Minimum purchase for "${listing.title}" is ${listing.minPurchaseKg} kg`,
+        `Minimum purchase for "${listing.title}" is ${listing.minPurchaseKg} kg`
       );
     }
     if (weightKg > lot.availableQuantityKg) {
       throw ApiError.badRequest(
-        `Only ${lot.availableQuantityKg} kg of "${listing.title}" is currently available`,
+        `Only ${lot.availableQuantityKg} kg of "${listing.title}" is currently available`
       );
     }
 
@@ -68,7 +63,7 @@ const createOrder = asyncHandler(async (req, res) => {
   for (const r of resolved) {
     if (r.weightKg > r.lot.availableQuantityKg) {
       throw ApiError.badRequest(
-        `Only ${r.lot.availableQuantityKg} kg of "${r.listing.title}" is currently available`,
+        `Only ${r.lot.availableQuantityKg} kg of "${r.listing.title}" is currently available`
       );
     }
   }
@@ -77,9 +72,10 @@ const createOrder = asyncHandler(async (req, res) => {
   const categoryIds = [...new Set(resolved.map((r) => String(r.listing.materialCategoryId)))];
   const pricingConfigs = await pricingRepo.findActiveForCategories(categoryIds);
   const taxForCategory = (categoryId) => {
-    const cfg = pricingConfigs.find(
-      (c) => String(c.materialCategoryId) === String(categoryId) && !c.materialType,
-    ) || pricingConfigs.find((c) => String(c.materialCategoryId) === String(categoryId));
+    const cfg =
+      pricingConfigs.find(
+        (c) => String(c.materialCategoryId) === String(categoryId) && !c.materialType
+      ) || pricingConfigs.find((c) => String(c.materialCategoryId) === String(categoryId));
     return cfg ? cfg.taxPercent : env.business.taxPercent;
   };
 
@@ -108,10 +104,12 @@ const createOrder = asyncHandler(async (req, res) => {
     const pct = pricedInputs[idx].taxPercent || 0;
     taxPaise += Math.round((it.subtotalPaise * pct) / 100);
   });
-  const effectiveTaxPercent = totals.materialSubtotalPaise > 0
-    ? Math.round((taxPaise / totals.materialSubtotalPaise) * 10000) / 100
-    : 0;
-  const totalPaise = totals.materialSubtotalPaise + taxPaise + totals.transportationPaise + totals.otherFeesPaise;
+  const effectiveTaxPercent =
+    totals.materialSubtotalPaise > 0
+      ? Math.round((taxPaise / totals.materialSubtotalPaise) * 10000) / 100
+      : 0;
+  const totalPaise =
+    totals.materialSubtotalPaise + taxPaise + totals.transportationPaise + totals.otherFeesPaise;
 
   const order = await ordersRepo.create({
     orderNumber: generateReference('ORD'),
@@ -139,12 +137,14 @@ const createOrder = asyncHandler(async (req, res) => {
     // Delivery cost is not computed from any real logistics source -> provisional.
     quoteIsProvisional: true,
     status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
-    statusHistory: [{
-      status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
-      at: new Date(),
-      by: req.user.id,
-      note: 'Purchase request submitted',
-    }],
+    statusHistory: [
+      {
+        status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
+        at: new Date(),
+        by: req.user.id,
+        note: 'Purchase request submitted',
+      },
+    ],
     notes: notes || '',
   });
 
@@ -152,9 +152,14 @@ const createOrder = asyncHandler(async (req, res) => {
     req.user.id,
     'Purchase request submitted',
     `Your purchase request ${order.orderNumber} was submitted and is pending review.`,
-    order.id,
+    order.id
   );
-  await recordAudit({ action: AUDIT_ACTION.ORDER_CREATE, resourceType: 'Order', resourceId: order.id, req });
+  await recordAudit({
+    action: AUDIT_ACTION.ORDER_CREATE,
+    resourceType: 'Order',
+    resourceId: order.id,
+    req,
+  });
 
   return created(res, { order: serializeOrder(order) }, 'Purchase request submitted');
 });

@@ -28,7 +28,7 @@ router.post(
   validateObjectId('id'),
   bidLimiter,
   validate(av.placeBidSchema),
-  controller.placeBid,
+  controller.placeBid
 );
 
 module.exports = router;

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 // socket.io-client is a dependency of the React app, not the server.
 const clientRequire = createRequire(
-  fileURLToPath(new URL('../../client/package.json', import.meta.url)),
+  fileURLToPath(new URL('../../client/package.json', import.meta.url))
 );
 const { io } = clientRequire('socket.io-client');
 
@@ -24,7 +24,7 @@ const PASSWORD = 'Password123!';
 
 const MINI_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  'base64',
+  'base64'
 );
 
 let passed = 0;
@@ -59,7 +59,12 @@ function makeJar(base) {
       h['Content-Type'] = 'application/json';
       payload = JSON.stringify(body);
     }
-    const res = await fetch(`${base}${path}`, { method, headers: h, body: payload, redirect: 'manual' });
+    const res = await fetch(`${base}${path}`, {
+      method,
+      headers: h,
+      body: payload,
+      redirect: 'manual',
+    });
     for (const c of res.headers.getSetCookie()) {
       const [pair] = c.split(';');
       const idx = pair.indexOf('=');
@@ -122,9 +127,12 @@ async function main() {
       phone: '9876543210',
       password: PASSWORD,
     });
-    if (reg.status !== 201) throw new Error(`register ${label} failed: ${JSON.stringify(reg.json)}`);
+    if (reg.status !== 201)
+      throw new Error(`register ${label} failed: ${JSON.stringify(reg.json)}`);
     if (reg.json.data.emailVerificationToken) {
-      const v = await jar.post('/auth/verify-email', { token: reg.json.data.emailVerificationToken });
+      const v = await jar.post('/auth/verify-email', {
+        token: reg.json.data.emailVerificationToken,
+      });
       check(`${label} registered + email verified`, v.status === 200, `status ${v.status}`);
     } else {
       check(`${label} registered`, true);
@@ -135,15 +143,20 @@ async function main() {
   const adminEmail = users[3][2];
   execSync(
     `docker exec metalmundi psql -U admin -d metalmundi -c "UPDATE users SET role='ADMIN' WHERE email='${adminEmail}';"`,
-    { stdio: 'pipe' },
+    { stdio: 'pipe' }
   );
   for (const [label, jar, email] of users) {
     await jar.post('/auth/logout');
     const login = await jar.post('/auth/login', { email, password: PASSWORD });
-    if (login.status !== 200) throw new Error(`login ${label} failed: ${JSON.stringify(login.json)}`);
+    if (login.status !== 200)
+      throw new Error(`login ${label} failed: ${JSON.stringify(login.json)}`);
   }
   const me = await adminJ.get('/auth/me');
-  check('admin login carries ADMIN role', me.json?.data?.user?.role === 'ADMIN', JSON.stringify(me.json?.data?.user?.role));
+  check(
+    'admin login carries ADMIN role',
+    me.json?.data?.user?.role === 'ADMIN',
+    JSON.stringify(me.json?.data?.user?.role)
+  );
 
   // ── 2. Admin configuration ─────────────────────────────────────────────────
   console.log('\n2. Admin configuration');
@@ -156,10 +169,14 @@ async function main() {
   });
   check(
     'auction settings updated (1–2 min durations)',
-    patch.status === 200 && patch.json.data.settings.defaultDurationMinutes === 1,
+    patch.status === 200 && patch.json.data.settings.defaultDurationMinutes === 1
   );
   const cutoff = await adminJ.patch('/admin/auction-settings', { minDurationMinutes: 10 });
-  check('cross-field validation rejected (min above default)', cutoff.status === 400, `status ${cutoff.status}`);
+  check(
+    'cross-field validation rejected (min above default)',
+    cutoff.status === 400,
+    `status ${cutoff.status}`
+  );
   await adminJ.patch('/admin/auction-settings', { minDurationMinutes: 1 });
 
   const cat = await adminJ.post('/admin/categories', { name: `E2E Ferrous ${RUN}` });
@@ -213,13 +230,21 @@ async function main() {
         ['left', 'left.png'],
         ['right', 'right.png'],
         ['weightEvidence', 'weightEvidence.png'],
-      ],
-    ),
+      ]
+    )
   );
-  check('auction submission accepted', sub.status === 201, `status ${sub.status}: ${JSON.stringify(sub.json).slice(0, 200)}`);
+  check(
+    'auction submission accepted',
+    sub.status === 201,
+    `status ${sub.status}: ${JSON.stringify(sub.json).slice(0, 200)}`
+  );
   let myAuctions = await sellerJ.get('/auctions/my');
   const auction = myAuctions.json?.data?.[0];
-  check('auction record created (PENDING_APPROVAL)', auction?.status === 'PENDING_APPROVAL', auction?.status);
+  check(
+    'auction record created (PENDING_APPROVAL)',
+    auction?.status === 'PENDING_APPROVAL',
+    auction?.status
+  );
   const auctionId = auction.id;
 
   const queue = await adminJ.get('/admin/auctions?status=PENDING_APPROVAL');
@@ -229,10 +254,16 @@ async function main() {
   // ── 4. Approval + socket subscription ─────────────────────────────────────
   console.log('\n4. Approval + real-time subscription');
   const approve = await adminJ.post(`/admin/auctions/${auctionId}/approve`, { durationMinutes: 1 });
-  check('auction approved and live', approve.status === 200 && approve.json.data.auction.status === 'ACTIVE');
+  check(
+    'auction approved and live',
+    approve.status === 200 && approve.json.data.auction.status === 'ACTIVE'
+  );
 
   const socketEvents = [];
-  const socket = io(ORIGIN, { transports: ['websocket'], extraHeaders: { Cookie: buyerAJ.cookieHeader() } });
+  const socket = io(ORIGIN, {
+    transports: ['websocket'],
+    extraHeaders: { Cookie: buyerAJ.cookieHeader() },
+  });
   const userSocketEvents = [];
   await new Promise((resolve, reject) => {
     socket.on('connect', resolve);
@@ -256,14 +287,31 @@ async function main() {
   check('seller self-bid rejected (403)', selfBid.status === 403, `status ${selfBid.status}`);
 
   const lowBid = await buyerAJ.post(`/auctions/${auctionId}/bids`, { bidPerKgPaise: 1900 });
-  check('bid below starting price rejected (409)', lowBid.status === 409, `status ${lowBid.status}`);
+  check(
+    'bid below starting price rejected (409)',
+    lowBid.status === 409,
+    `status ${lowBid.status}`
+  );
 
   const key = `e2e-${RUN}-a1`;
-  const bidA = await buyerAJ.post(`/auctions/${auctionId}/bids`, { bidPerKgPaise: 2000, idempotencyKey: key });
-  check('first bid at starting price accepted', bidA.status === 200, `status ${bidA.status}: ${JSON.stringify(bidA.json).slice(0, 160)}`);
-  const replay = await buyerAJ.post(`/auctions/${auctionId}/bids`, { bidPerKgPaise: 2000, idempotencyKey: key });
-  check('idempotent replay reported, not re-recorded', replay.status === 200 && /already recorded/i.test(replay.json?.message || ''),
-    `status ${replay.status}: ${replay.json?.message}`);
+  const bidA = await buyerAJ.post(`/auctions/${auctionId}/bids`, {
+    bidPerKgPaise: 2000,
+    idempotencyKey: key,
+  });
+  check(
+    'first bid at starting price accepted',
+    bidA.status === 200,
+    `status ${bidA.status}: ${JSON.stringify(bidA.json).slice(0, 160)}`
+  );
+  const replay = await buyerAJ.post(`/auctions/${auctionId}/bids`, {
+    bidPerKgPaise: 2000,
+    idempotencyKey: key,
+  });
+  check(
+    'idempotent replay reported, not re-recorded',
+    replay.status === 200 && /already recorded/i.test(replay.json?.message || ''),
+    `status ${replay.status}: ${replay.json?.message}`
+  );
 
   const staleBid = await buyerBJ.post(`/auctions/${auctionId}/bids`, { bidPerKgPaise: 2000 });
   check('equal/stale bid rejected (409)', staleBid.status === 409, `status ${staleBid.status}`);
@@ -273,25 +321,56 @@ async function main() {
 
   const pub = await anonJ.get(`/auctions/${auctionId}`);
   const a = pub.json.data.auction;
-  check('public state shows highest bid', a.currentHighestBidPerKgPaise === 2100, String(a.currentHighestBidPerKgPaise));
-  check('public state hides reserve/minAcceptable/expected', 
-    a.reservePricePerKgPaise === undefined && a.minAcceptablePerKgPaise === undefined && a.expectedPricePerKgPaise === undefined);
+  check(
+    'public state shows highest bid',
+    a.currentHighestBidPerKgPaise === 2100,
+    String(a.currentHighestBidPerKgPaise)
+  );
+  check(
+    'public state hides reserve/minAcceptable/expected',
+    a.reservePricePerKgPaise === undefined &&
+      a.minAcceptablePerKgPaise === undefined &&
+      a.expectedPricePerKgPaise === undefined
+  );
   const ownerView = await sellerJ.get(`/auctions/${auctionId}`);
-  check('owner sees reserve price', ownerView.json.data.auction.reservePricePerKgPaise === 2100,
-    String(ownerView.json.data.auction.reservePricePerKgPaise));
+  check(
+    'owner sees reserve price',
+    ownerView.json.data.auction.reservePricePerKgPaise === 2100,
+    String(ownerView.json.data.auction.reservePricePerKgPaise)
+  );
 
   const bids = await anonJ.get(`/auctions/${auctionId}/bids`);
   const bidRows = bids.json.data;
-  check('bid history order (2100 first)', bidRows[0].bidPerKgPaise === 2100 && bidRows.length === 2, JSON.stringify(bidRows.map((b) => b.bidPerKgPaise)));
-  check('public bid history anonymizes bidders', bidRows.every((b) => !b.bidderName && !b.bidderEmail));
+  check(
+    'bid history order (2100 first)',
+    bidRows[0].bidPerKgPaise === 2100 && bidRows.length === 2,
+    JSON.stringify(bidRows.map((b) => b.bidPerKgPaise))
+  );
+  check(
+    'public bid history anonymizes bidders',
+    bidRows.every((b) => !b.bidderName && !b.bidderEmail)
+  );
 
   await sleep(600);
-  check('socket auction:bid broadcast received', socketEvents.some(([e]) => e === 'bid'));
-  check('outbid party notified in real time', userSocketEvents.length >= 1, JSON.stringify(userSocketEvents).slice(0, 160));
+  check(
+    'socket auction:bid broadcast received',
+    socketEvents.some(([e]) => e === 'bid')
+  );
+  check(
+    'outbid party notified in real time',
+    userSocketEvents.length >= 1,
+    JSON.stringify(userSocketEvents).slice(0, 160)
+  );
 
   const notifA = await buyerAJ.get('/notifications/my');
-  const outbidNotif = (notifA.json?.data || []).find((n) => n.type === 'AUCTION' && /outbid/i.test(n.title));
-  check('in-app outbid notification stored (type AUCTION)', Boolean(outbidNotif), JSON.stringify(notifA.json).slice(0, 200));
+  const outbidNotif = (notifA.json?.data || []).find(
+    (n) => n.type === 'AUCTION' && /outbid/i.test(n.title)
+  );
+  check(
+    'in-app outbid notification stored (type AUCTION)',
+    Boolean(outbidNotif),
+    JSON.stringify(notifA.json).slice(0, 200)
+  );
 
   // ── 6. Server-authoritative deadline ───────────────────────────────────────
   console.log('\n6. Deadline enforcement + worker finalization');
@@ -300,7 +379,9 @@ async function main() {
   const early = await buyerAJ.post(`/auctions/${auctionId}/bids`, { bidPerKgPaise: 2200 });
   check('bid before deadline accepted (2200)', early.status === 200, `status ${early.status}`);
 
-  console.log(`   waiting for deadline (${Math.max(0, Math.round((endAt - Date.now()) / 1000))}s)…`);
+  console.log(
+    `   waiting for deadline (${Math.max(0, Math.round((endAt - Date.now()) / 1000))}s)…`
+  );
   let finalState = null;
   for (let i = 0; i < 40; i++) {
     await sleep(3000);
@@ -308,9 +389,16 @@ async function main() {
     finalState = s.json.data.auction;
     if (['AWAITING_PAYMENT', 'ENDED', 'NO_BIDS'].includes(finalState.status)) break;
   }
-  check('auction finalized by worker after deadline', finalState.status === 'AWAITING_PAYMENT', finalState.status);
+  check(
+    'auction finalized by worker after deadline',
+    finalState.status === 'AWAITING_PAYMENT',
+    finalState.status
+  );
   check('winner is the latest highest bidder', finalState.currentHighestBidPerKgPaise === 2200);
-  check('socket auction:ended broadcast received', socketEvents.some(([e]) => e === 'ended'));
+  check(
+    'socket auction:ended broadcast received',
+    socketEvents.some(([e]) => e === 'ended')
+  );
 
   const latebid = await buyerAJ.post(`/auctions/${auctionId}/bids`, { bidPerKgPaise: 2300 });
   check('bid after deadline rejected (409)', latebid.status === 409, `status ${latebid.status}`);
@@ -320,47 +408,84 @@ async function main() {
   const detail = await adminJ.get(`/admin/auctions/${auctionId}`);
   const settled = detail.json.data.auction;
   const gross = 2200 * 500;
-  check('settlement gross = bid × listed qty', settled.settlement?.grossPaise === gross, `${settled.settlement?.grossPaise} vs ${gross}`);
-  check('settlement tax = 18% of gross', settled.settlement?.taxPaise === Math.round(gross * 0.18), String(settled.settlement?.taxPaise));
-  check('buyer payable = gross + tax',
-    settled.settlement?.buyerPayablePaise === gross + Math.round(gross * 0.18));
+  check(
+    'settlement gross = bid × listed qty',
+    settled.settlement?.grossPaise === gross,
+    `${settled.settlement?.grossPaise} vs ${gross}`
+  );
+  check(
+    'settlement tax = 18% of gross',
+    settled.settlement?.taxPaise === Math.round(gross * 0.18),
+    String(settled.settlement?.taxPaise)
+  );
+  check(
+    'buyer payable = gross + tax',
+    settled.settlement?.buyerPayablePaise === gross + Math.round(gross * 0.18)
+  );
 
   // The final 2200 bid was placed by buyer A — the winner and order owner.
   const myOrders = await buyerAJ.get('/orders/my');
   const order = (myOrders.json?.data || []).find((o) => o.auction === auction.id);
-  check('winner has a linked order (UNPAID, AWAITING flow)', Boolean(order) && order?.payment?.status === 'UNPAID',
-    JSON.stringify((myOrders.json?.data || []).slice(0, 1)).slice(0, 200));
+  check(
+    'winner has a linked order (UNPAID, AWAITING flow)',
+    Boolean(order) && order?.payment?.status === 'UNPAID',
+    JSON.stringify((myOrders.json?.data || []).slice(0, 1)).slice(0, 200)
+  );
 
-  const pay = await adminJ.post(`/admin/auctions/${auctionId}/payment-received`, { provider: 'MANUAL', reference: `E2E-${RUN}` });
-  check('payment recorded → AWAITING_PICKUP', pay.status === 200 && pay.json.data.auction.status === 'AWAITING_PICKUP');
+  const pay = await adminJ.post(`/admin/auctions/${auctionId}/payment-received`, {
+    provider: 'MANUAL',
+    reference: `E2E-${RUN}`,
+  });
+  check(
+    'payment recorded → AWAITING_PICKUP',
+    pay.status === 200 && pay.json.data.auction.status === 'AWAITING_PICKUP'
+  );
 
   const complete = await adminJ.post(`/admin/auctions/${auctionId}/complete`, {
     verifiedQuantityKg: 480,
     note: 'E2E verified weight 480 kg',
   });
   const done = complete.json?.data?.auction;
-  check('verified quantity adjustment recomputes settlement', done?.settlement?.grossPaise === 2200 * 480 && done?.settlement?.quantitySource === 'VERIFIED',
-    JSON.stringify(done?.settlement)?.slice(0, 200));
-  check('adjustment recorded on auction', Array.isArray(done?.adjustments) && done.adjustments.length === 1);
+  check(
+    'verified quantity adjustment recomputes settlement',
+    done?.settlement?.grossPaise === 2200 * 480 && done?.settlement?.quantitySource === 'VERIFIED',
+    JSON.stringify(done?.settlement)?.slice(0, 200)
+  );
+  check(
+    'adjustment recorded on auction',
+    Array.isArray(done?.adjustments) && done.adjustments.length === 1
+  );
   check('auction COMPLETED', done?.status === 'COMPLETED', done?.status);
 
   const myOrders2 = await buyerAJ.get('/orders/my');
   const order2 = (myOrders2.json?.data || []).find((o) => o.auction === auction.id);
-  check('order delivered with verified weight', order2?.status === 'DELIVERED' && order2?.items?.[0]?.weightKg === 480,
-    JSON.stringify({ status: order2?.status, kg: order2?.items?.[0]?.weightKg }));
+  check(
+    'order delivered with verified weight',
+    order2?.status === 'DELIVERED' && order2?.items?.[0]?.weightKg === 480,
+    JSON.stringify({ status: order2?.status, kg: order2?.items?.[0]?.weightKg })
+  );
 
   if (order2) {
-    const orderPanel = await adminJ.patch(`/admin/orders/${order2.id}/status`, { status: 'PROCESSING' });
-    check('auction order blocked from the normal order panel (409)', orderPanel.status === 409, `status ${orderPanel.status}`);
+    const orderPanel = await adminJ.patch(`/admin/orders/${order2.id}/status`, {
+      status: 'PROCESSING',
+    });
+    check(
+      'auction order blocked from the normal order panel (409)',
+      orderPanel.status === 409,
+      `status ${orderPanel.status}`
+    );
   } else {
     check('auction order blocked from the normal order panel (409)', false, 'no order found');
   }
 
   const sellerNotif = await sellerJ.get('/notifications/my');
   const sellerList = sellerNotif.json?.data || [];
-  check('seller got payment + completion notifications',
-    sellerList.some((n) => /payment received/i.test(n.title)) && sellerList.some((n) => /auction completed/i.test(n.title)),
-    JSON.stringify(sellerList.map((n) => n.title)).slice(0, 200));
+  check(
+    'seller got payment + completion notifications',
+    sellerList.some((n) => /payment received/i.test(n.title)) &&
+      sellerList.some((n) => /auction completed/i.test(n.title)),
+    JSON.stringify(sellerList.map((n) => n.title)).slice(0, 200)
+  );
 
   // ── 8. Restore original settings ───────────────────────────────────────────
   console.log('\n8. Restore settings');
@@ -373,7 +498,11 @@ async function main() {
     minIncrementType: original.minIncrementType,
     minIncrementValue: original.minIncrementValue,
   });
-  check('settings restored to pre-run values', restore.status === 200 && restore.json.data.settings.minDurationMinutes === original.minDurationMinutes);
+  check(
+    'settings restored to pre-run values',
+    restore.status === 200 &&
+      restore.json.data.settings.minDurationMinutes === original.minDurationMinutes
+  );
 
   socket.close();
 

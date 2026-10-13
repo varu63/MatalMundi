@@ -8,7 +8,7 @@ const createOrderSchema = z.object({
       z.object({
         listingId: objectId,
         weightKg: z.coerce.number().positive('Weight must be greater than 0'),
-      }),
+      })
     )
     .min(1, 'Add at least one material to your order'),
   delivery: z.object({

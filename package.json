@@ -14,13 +14,22 @@
     "test": "npm --prefix server test",
     "test:server": "npm --prefix server test",
     "test:client": "npm --prefix client test",
-    "lint": "npm --prefix server run lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "seed:admin": "node scripts/create-admin.js",
     "seed:demo": "node scripts/seed-demo.js",
     "prisma:generate": "npm --prefix server run prisma:generate",
     "prisma:deploy": "npm --prefix server run prisma:deploy"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^9.1.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10"
   }
 }

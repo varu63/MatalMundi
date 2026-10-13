@@ -9,11 +9,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { ok, paginated } = require('../utils/apiResponse');
 const { serializeAuction, serializeAuctionBid } = require('../utils/serializers');
 const { parsePage } = require('../utils/numbers');
-const {
-  ROLES,
-  AUCTION_STATUS,
-  AUCTION_PUBLIC_STATUSES,
-} = require('../utils/constants');
+const { ROLES, AUCTION_STATUS, AUCTION_PUBLIC_STATUSES } = require('../utils/constants');
 
 function roleOf(req) {
   return req.user ? req.user.role : null;
@@ -47,9 +43,10 @@ const CONCLUDED_STATUSES = [
 const listAuctions = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePage(req.query);
   const requested = req.query.status;
-  const statuses = requested && AUCTION_PUBLIC_STATUSES.includes(requested)
-    ? [requested]
-    : AUCTION_PUBLIC_STATUSES;
+  const statuses =
+    requested && AUCTION_PUBLIC_STATUSES.includes(requested)
+      ? [requested]
+      : AUCTION_PUBLIC_STATUSES;
 
   const { rows, total } = await auctionsRepo.list({
     statuses,
@@ -68,7 +65,11 @@ const listAuctions = asyncHandler(async (req, res) => {
     variant: 'public',
   });
 
-  return paginated(res, rows.map((r) => serializeAuction(r, { variant: 'public' })), { page, limit, total });
+  return paginated(
+    res,
+    rows.map((r) => serializeAuction(r, { variant: 'public' })),
+    { page, limit, total }
+  );
 });
 
 /** Public detail (seller/admin get their extended variants). Expired auctions
@@ -81,9 +82,9 @@ const getAuction = asyncHandler(async (req, res) => {
   assertVisible(variant, raw);
 
   if (
-    raw.status === AUCTION_STATUS.ACTIVE
-    && raw.endAt
-    && new Date(raw.endAt).getTime() <= Date.now()
+    raw.status === AUCTION_STATUS.ACTIVE &&
+    raw.endAt &&
+    new Date(raw.endAt).getTime() <= Date.now()
   ) {
     await auctionService.finalizeAuction(raw.id, { trigger: 'read' }).catch(() => {});
   }
@@ -112,11 +113,13 @@ const listAuctionBids = asyncHandler(async (req, res) => {
     includeBidder,
   });
 
-  const serialized = rows.map((b) => serializeAuctionBid(b, {
-    viewerId: req.user ? req.user.id : null,
-    isAdmin,
-    revealIdentities: ownerReveal,
-  }));
+  const serialized = rows.map((b) =>
+    serializeAuctionBid(b, {
+      viewerId: req.user ? req.user.id : null,
+      isAdmin,
+      revealIdentities: ownerReveal,
+    })
+  );
   return paginated(res, serialized, { page, limit, total });
 });
 
@@ -136,7 +139,7 @@ const placeBid = asyncHandler(async (req, res) => {
       bid: serializeAuctionBid(result.bid, { viewerId: req.user.id }),
       auction: serializeAuction(result.auction, { variant: 'public' }),
     },
-    result.replay ? 'Bid already recorded' : 'Bid placed successfully',
+    result.replay ? 'Bid already recorded' : 'Bid placed successfully'
   );
 });
 
@@ -151,7 +154,11 @@ const myAuctions = asyncHandler(async (req, res) => {
     orderBy: { createdAt: 'desc' },
     variant: 'owner',
   });
-  return paginated(res, rows.map((r) => serializeAuction(r, { variant: 'owner' })), { page, limit, total });
+  return paginated(
+    res,
+    rows.map((r) => serializeAuction(r, { variant: 'owner' })),
+    { page, limit, total }
+  );
 });
 
 function auctionSummary(a) {
@@ -205,4 +212,12 @@ const getPublicSettings = asyncHandler(async (_req, res) => {
   });
 });
 
-module.exports = { listAuctions, getAuction, listAuctionBids, placeBid, myAuctions, myBids, getPublicSettings };
+module.exports = {
+  listAuctions,
+  getAuction,
+  listAuctionBids,
+  placeBid,
+  myAuctions,
+  myBids,
+  getPublicSettings,
+};

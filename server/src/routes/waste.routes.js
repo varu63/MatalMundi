@@ -19,7 +19,7 @@ router.post(
   wasteImageUpload,
   parseJsonFields(['pickup']),
   validate(validator.createSubmissionSchema),
-  controller.createSubmission,
+  controller.createSubmission
 );
 
 router.post('/estimate', validate(validator.estimateSchema), controller.estimateValuation);

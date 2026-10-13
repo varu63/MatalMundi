@@ -51,7 +51,7 @@ const createSubmission = asyncHandler(async (req, res) => {
   if (isAuction && !fileFor(files, 'weightEvidence')) missing.push('weightEvidence');
   if (missing.length) {
     throw ApiError.badRequest(
-      `All four side photographs are required${isAuction ? ' plus weight evidence' : ''}. Missing: ${missing.join(', ')}`,
+      `All four side photographs are required${isAuction ? ' plus weight evidence' : ''}. Missing: ${missing.join(', ')}`
     );
   }
 
@@ -82,7 +82,7 @@ const createSubmission = asyncHandler(async (req, res) => {
     auctionSettings = await auctionSettingsRepo.get();
     if (Number(req.body.quantityKg) < Number(auctionSettings.minAuctionQuantityKg)) {
       throw ApiError.badRequest(
-        `Auctions require at least ${auctionSettings.minAuctionQuantityKg} kg (you entered ${req.body.quantityKg} kg). Use a normal sale for smaller lots.`,
+        `Auctions require at least ${auctionSettings.minAuctionQuantityKg} kg (you entered ${req.body.quantityKg} kg). Use a normal sale for smaller lots.`
       );
     }
     auctionDurationMinutes = resolveDurationMinutes(auctionSettings, req.body.durationMinutes);
@@ -101,7 +101,6 @@ const createSubmission = asyncHandler(async (req, res) => {
     const folder = `waste/${category.slug}`;
     const images = {};
     for (const side of REQUIRED_SIDES) {
-      // eslint-disable-next-line no-await-in-loop
       const asset = await uploadImage(fileFor(files, side).buffer, {
         folder,
         mimetype: fileFor(files, side).mimetype,
@@ -122,7 +121,6 @@ const createSubmission = asyncHandler(async (req, res) => {
 
     const additional = [];
     for (const file of files.additional || []) {
-      // eslint-disable-next-line no-await-in-loop
       const asset = await uploadImage(file.buffer, { folder, mimetype: file.mimetype });
       additional.push(asset);
       uploaded.push(asset);
@@ -139,70 +137,74 @@ const createSubmission = asyncHandler(async (req, res) => {
 
     const demand = normalizeDemand({
       demandBasis: req.body.demandBasis,
-      demandedTotalPaise: req.body.demandBasis === DEMAND_BASIS.TOTAL
-        ? Math.round(req.body.demandedPrice * 100)
-        : 0,
-      demandedPerKgPaise: req.body.demandBasis === DEMAND_BASIS.PER_KG
-        ? Math.round(req.body.demandedPrice * 100)
-        : 0,
+      demandedTotalPaise:
+        req.body.demandBasis === DEMAND_BASIS.TOTAL ? Math.round(req.body.demandedPrice * 100) : 0,
+      demandedPerKgPaise:
+        req.body.demandBasis === DEMAND_BASIS.PER_KG ? Math.round(req.body.demandedPrice * 100) : 0,
       quantityKg: req.body.quantityKg,
     });
 
     // 8. Submission (+ auction row in auction mode) are created atomically —
     //    an AUCTION-mode submission can never exist without its auction.
     const { submission, auction } = await prisma.$transaction(async (tx) => {
-      const createdSubmission = await submissionsRepo.create({
-        submissionNumber: generateReference('WS'),
-        sellerId,
-        materialCategoryId: category.id,
-        materialType: req.body.materialType,
-        quantityKg: req.body.quantityKg,
-        condition: req.body.condition,
-        qualityGrade: req.body.qualityGrade,
-        description: req.body.description,
-        images,
-        pickup: req.body.pickup,
-        demandBasis: req.body.demandBasis,
-        demandedTotalPaise: demand.demandedTotalPaise,
-        demandedPerKgPaise: demand.demandedPerKgPaise,
-        valuation,
-        status: SUBMISSION_STATUS.PENDING_APPROVAL,
-        saleMode,
-      }, tx);
-
-      let createdAuction = null;
-      if (isAuction) {
-        createdAuction = await auctionsRepo.create({
-          auctionNumber: generateReference('AUC'),
-          submissionId: createdSubmission.id,
+      const createdSubmission = await submissionsRepo.create(
+        {
+          submissionNumber: generateReference('WS'),
           sellerId,
           materialCategoryId: category.id,
           materialType: req.body.materialType,
           quantityKg: req.body.quantityKg,
           condition: req.body.condition,
           qualityGrade: req.body.qualityGrade,
+          description: req.body.description,
           images,
-          location: {
-            address: req.body.pickup.address,
-            city: req.body.pickup.city,
-            state: req.body.pickup.state,
+          pickup: req.body.pickup,
+          demandBasis: req.body.demandBasis,
+          demandedTotalPaise: demand.demandedTotalPaise,
+          demandedPerKgPaise: demand.demandedPerKgPaise,
+          valuation,
+          status: SUBMISSION_STATUS.PENDING_APPROVAL,
+          saleMode,
+        },
+        tx
+      );
+
+      let createdAuction = null;
+      if (isAuction) {
+        createdAuction = await auctionsRepo.create(
+          {
+            auctionNumber: generateReference('AUC'),
+            submissionId: createdSubmission.id,
+            sellerId,
+            materialCategoryId: category.id,
+            materialType: req.body.materialType,
+            quantityKg: req.body.quantityKg,
+            condition: req.body.condition,
+            qualityGrade: req.body.qualityGrade,
+            images,
+            location: {
+              address: req.body.pickup.address,
+              city: req.body.pickup.city,
+              state: req.body.pickup.state,
+            },
+            inspectionNotes: req.body.inspectionNotes || '',
+            startingPricePerKgPaise: moneyToPaise(req.body.startingPricePerKg),
+            expectedPricePerKgPaise:
+              req.body.expectedPricePerKg != null ? moneyToPaise(req.body.expectedPricePerKg) : 0,
+            minAcceptableBidPerKgPaise:
+              req.body.minAcceptablePerKg != null ? moneyToPaise(req.body.minAcceptablePerKg) : 0,
+            reservePricePerKgPaise:
+              req.body.reservePricePerKg != null ? moneyToPaise(req.body.reservePricePerKg) : null,
+            minIncrementType: auctionSettings.minIncrementType,
+            minIncrementValue: auctionSettings.minIncrementValue,
+            antiSnipingEnabled: auctionSettings.antiSnipingEnabled,
+            antiSnipingWindowSeconds: auctionSettings.antiSnipingWindowSeconds,
+            antiSnipingExtensionSeconds: auctionSettings.antiSnipingExtensionSeconds,
+            durationMinutes: auctionDurationMinutes,
+            status: AUCTION_STATUS.PENDING_APPROVAL,
           },
-          inspectionNotes: req.body.inspectionNotes || '',
-          startingPricePerKgPaise: moneyToPaise(req.body.startingPricePerKg),
-          expectedPricePerKgPaise:
-            req.body.expectedPricePerKg != null ? moneyToPaise(req.body.expectedPricePerKg) : 0,
-          minAcceptableBidPerKgPaise:
-            req.body.minAcceptablePerKg != null ? moneyToPaise(req.body.minAcceptablePerKg) : 0,
-          reservePricePerKgPaise:
-            req.body.reservePricePerKg != null ? moneyToPaise(req.body.reservePricePerKg) : null,
-          minIncrementType: auctionSettings.minIncrementType,
-          minIncrementValue: auctionSettings.minIncrementValue,
-          antiSnipingEnabled: auctionSettings.antiSnipingEnabled,
-          antiSnipingWindowSeconds: auctionSettings.antiSnipingWindowSeconds,
-          antiSnipingExtensionSeconds: auctionSettings.antiSnipingExtensionSeconds,
-          durationMinutes: auctionDurationMinutes,
-          status: AUCTION_STATUS.PENDING_APPROVAL,
-        }, tx);
+          tx
+        );
       }
 
       return { submission: createdSubmission, auction: createdAuction };
@@ -214,7 +216,7 @@ const createSubmission = asyncHandler(async (req, res) => {
       isAuction
         ? `Your auction ${auction.auctionNumber} was received. It becomes public once our team approves it.`
         : `Your submission ${submission.submissionNumber} was received and is pending review.`,
-      submission.id,
+      submission.id
     );
     await recordAudit({
       action: AUDIT_ACTION.SUBMISSION_CREATE,
@@ -230,7 +232,7 @@ const createSubmission = asyncHandler(async (req, res) => {
         submission: serializeSubmission(submission),
         ...(auction ? { auction: serializeAuction(auction, { variant: 'owner' }) } : {}),
       },
-      isAuction ? 'Auction submission created — pending approval' : 'Waste submission created',
+      isAuction ? 'Auction submission created — pending approval' : 'Waste submission created'
     );
   } catch (err) {
     // 9. Roll back uploaded assets on any failure.

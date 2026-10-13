@@ -31,7 +31,11 @@ export default function Register() {
       navigate('/dashboard');
     } catch (err) {
       const details = err.response?.data?.details;
-      setError(details?.map((d) => d.message).join('. ') || err.response?.data?.message || 'Registration failed.');
+      setError(
+        details?.map((d) => d.message).join('. ') ||
+          err.response?.data?.message ||
+          'Registration failed.'
+      );
     } finally {
       setBusy(false);
     }
@@ -50,7 +54,13 @@ export default function Register() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Email</label>
-              <input type="email" className="input" value={form.email} onChange={set('email')} required />
+              <input
+                type="email"
+                className="input"
+                value={form.email}
+                onChange={set('email')}
+                required
+              />
             </div>
             <div>
               <label className="label">Phone</label>

@@ -57,14 +57,21 @@ export default function MyAuctions() {
                 {data.data.map((a) => (
                   <tr key={a.id} className="hover:bg-ink-50/50">
                     <td className="px-5 py-3">
-                      <Link to={`/auctions/${a.id}`} className="font-medium text-brand-700 hover:underline">
+                      <Link
+                        to={`/auctions/${a.id}`}
+                        className="font-medium text-brand-700 hover:underline"
+                      >
                         {a.auctionNumber}
                       </Link>
                     </td>
                     <td className="px-5 py-3">
                       <span className="flex items-center gap-2">
                         {firstImage(a.images) ? (
-                          <img src={firstImage(a.images)} alt="" className="h-8 w-8 rounded object-cover" />
+                          <img
+                            src={firstImage(a.images)}
+                            alt=""
+                            className="h-8 w-8 rounded object-cover"
+                          />
                         ) : null}
                         {a.materialType}
                       </span>
@@ -73,7 +80,9 @@ export default function MyAuctions() {
                     <td className="px-5 py-3">{paise(a.startingPricePerKgPaise)}/kg</td>
                     <td className="px-5 py-3">
                       {a.currentHighestBidPerKgPaise ? (
-                        <span className="font-semibold text-brand-700">{paise(a.currentHighestBidPerKgPaise)}/kg</span>
+                        <span className="font-semibold text-brand-700">
+                          {paise(a.currentHighestBidPerKgPaise)}/kg
+                        </span>
                       ) : (
                         <span className="text-ink-400">—</span>
                       )}

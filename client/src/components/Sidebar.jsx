@@ -54,7 +54,9 @@ const adminLinks = [
 function SidebarSection({ title, links, onNavigate }) {
   return (
     <div className="pt-3 first:pt-0">
-      <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-ink-500">{title}</p>
+      <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-ink-500">
+        {title}
+      </p>
       <div className="space-y-1">
         {links.map((l) => (
           <NavLink
@@ -128,7 +130,9 @@ export default function Sidebar() {
         <nav className="flex-1 space-y-2 overflow-y-auto p-3 scrollbar-thin">
           <SidebarSection title="Browse" links={browseLinks} onNavigate={close} />
           {user && <SidebarSection title="Dashboard" links={dashboardLinks} onNavigate={close} />}
-          {user?.role === 'ADMIN' && <SidebarSection title="Admin" links={adminLinks} onNavigate={close} />}
+          {user?.role === 'ADMIN' && (
+            <SidebarSection title="Admin" links={adminLinks} onNavigate={close} />
+          )}
         </nav>
       </aside>
     </>

@@ -41,7 +41,7 @@ app.use(
       return cb(null, { origin: true, credentials: true });
     }
     return cb(new Error('Origin not allowed by CORS'));
-  }),
+  })
 );
 
 app.use(morgan(env.isProd ? 'combined' : 'dev'));
@@ -72,7 +72,11 @@ const clientDist = path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || req.path.startsWith('/socket.io/')) {
+    if (
+      req.path.startsWith('/api/') ||
+      req.path.startsWith('/uploads/') ||
+      req.path.startsWith('/socket.io/')
+    ) {
       return next();
     }
     return res.sendFile(path.join(clientDist, 'index.html'));

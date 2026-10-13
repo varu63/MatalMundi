@@ -11,7 +11,14 @@ function slugify(name) {
     .replace(/^-+|-+$/g, '');
 }
 
-async function create({ name, slug, description = '', icon = 'recycle', sortOrder = 0, active = true }) {
+async function create({
+  name,
+  slug,
+  description = '',
+  icon = 'recycle',
+  sortOrder = 0,
+  active = true,
+}) {
   return prisma.materialCategory.create({
     data: {
       id: newId(),

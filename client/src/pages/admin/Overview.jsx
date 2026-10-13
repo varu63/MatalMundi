@@ -22,7 +22,11 @@ export default function AdminOverview() {
   const cards = [
     { label: 'Pending approval', value: stats.pendingSubmissions, to: '/admin/submissions' },
     { label: 'Under review', value: stats.underReview, to: '/admin/submissions' },
-    { label: 'Approved · awaiting pickup', value: stats.approvedAwaitingPublication, to: '/admin/submissions' },
+    {
+      label: 'Approved · awaiting pickup',
+      value: stats.approvedAwaitingPublication,
+      to: '/admin/submissions',
+    },
     { label: 'Live listings', value: stats.publishedListings, to: '/admin/listings' },
     { label: 'Orders awaiting decision', value: stats.pendingOrders, to: '/admin/orders' },
     { label: 'In progress orders', value: stats.acceptedOrders, to: '/admin/orders' },
@@ -31,7 +35,12 @@ export default function AdminOverview() {
   ];
 
   const bars = [
-    { label: 'Available stock', value: stats.activeInventoryKg, max: stats.totalCollectedKg, unit: 'kg' },
+    {
+      label: 'Available stock',
+      value: stats.activeInventoryKg,
+      max: stats.totalCollectedKg,
+      unit: 'kg',
+    },
     { label: 'Reserved', value: stats.reservedKg, max: stats.totalCollectedKg, unit: 'kg' },
     { label: 'Sold', value: stats.totalSoldKg, max: stats.totalCollectedKg, unit: 'kg' },
   ];
@@ -50,7 +59,8 @@ export default function AdminOverview() {
       <div className="card p-6">
         <h2 className="mb-4 font-semibold text-ink-900">Inventory health</h2>
         <p className="mb-4 text-sm text-ink-500">
-          Total material collected: <span className="font-semibold">{kg(stats.totalCollectedKg)}</span>
+          Total material collected:{' '}
+          <span className="font-semibold">{kg(stats.totalCollectedKg)}</span>
         </p>
         <div className="space-y-3 text-sm">
           {bars.map((b) => (

@@ -1,15 +1,12 @@
 'use strict';
 
 const { z, objectId } = require('./commonValidators');
-const {
-  AUCTION_STATUS,
-  BID_INCREMENT_TYPE,
-} = require('../utils/constants');
+const { AUCTION_STATUS, BID_INCREMENT_TYPE } = require('../utils/constants');
 
 const optionalNumber = (schema) =>
   z.preprocess(
     (v) => (v === '' || v === null || v === undefined ? undefined : v),
-    schema.optional(),
+    schema.optional()
   );
 
 const paginationFields = {
@@ -97,7 +94,11 @@ const updateAuctionSettingsSchema = z
     defaultDurationMinutes: optionalNumber(z.coerce.number().int().min(1).max(10_080)),
     minDurationMinutes: optionalNumber(z.coerce.number().int().min(1).max(10_080)),
     maxDurationMinutes: optionalNumber(z.coerce.number().int().min(1).max(10_080)),
-    allowedDurationsMinutes: z.array(z.coerce.number().int().min(1).max(10_080)).min(1).max(12).optional(),
+    allowedDurationsMinutes: z
+      .array(z.coerce.number().int().min(1).max(10_080))
+      .min(1)
+      .max(12)
+      .optional(),
     minIncrementType: z.enum(Object.values(BID_INCREMENT_TYPE)).optional(),
     minIncrementValue: optionalNumber(z.coerce.number().positive().max(1_000_000)),
     antiSnipingEnabled: z.boolean().optional(),

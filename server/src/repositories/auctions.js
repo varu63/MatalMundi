@@ -35,7 +35,9 @@ const ADMIN_INCLUDE = {
   rejectedBy: { select: { id: true, name: true } },
   cancelledBy: { select: { id: true, name: true } },
   winner: { select: { id: true, name: true, email: true, phone: true } },
-  order: { select: { id: true, orderNumber: true, status: true, paymentStatus: true, totalPaise: true } },
+  order: {
+    select: { id: true, orderNumber: true, status: true, paymentStatus: true, totalPaise: true },
+  },
 };
 
 function includeFor(variant) {
@@ -61,7 +63,19 @@ function findByOrderId(orderId) {
   return prisma.wasteAuction.findFirst({ where: { order: { id: orderId } } });
 }
 
-function buildWhere({ status, statuses, categoryId, materialType, search, sellerId, city, bidMin, bidMax, quantityMin, quantityMax } = {}) {
+function buildWhere({
+  status,
+  statuses,
+  categoryId,
+  materialType,
+  search,
+  sellerId,
+  city,
+  bidMin,
+  bidMax,
+  quantityMin,
+  quantityMax,
+} = {}) {
   const where = {};
   if (status) where.status = status;
   if (statuses && statuses.length) where.status = { in: statuses };
@@ -88,7 +102,13 @@ function buildWhere({ status, statuses, categoryId, materialType, search, seller
   return where;
 }
 
-async function list({ skip = 0, take = 12, orderBy = { createdAt: 'desc' }, variant = 'public', ...filters } = {}) {
+async function list({
+  skip = 0,
+  take = 12,
+  orderBy = { createdAt: 'desc' },
+  variant = 'public',
+  ...filters
+} = {}) {
   const where = buildWhere(filters);
   const [rows, total] = await Promise.all([
     prisma.wasteAuction.findMany({ where, orderBy, skip, take, include: includeFor(variant) }),

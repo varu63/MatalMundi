@@ -44,7 +44,10 @@ describe('Role-based access control', () => {
 
   test('ordinary users cannot approve waste submissions (403)', async () => {
     const userAgent = await loginAs(await createUser());
-    const res = await userAgent.post('/admin/waste-submissions/000000000000000000000000/approve', {});
+    const res = await userAgent.post(
+      '/admin/waste-submissions/000000000000000000000000/approve',
+      {}
+    );
     expect(res.status).toBe(403);
   });
 

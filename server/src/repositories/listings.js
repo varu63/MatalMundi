@@ -16,7 +16,13 @@ const PUBLIC_INCLUDE = {
 const ADMIN_LIST_INCLUDE = {
   materialCategory: { select: { id: true, name: true } },
   inventoryLot: {
-    select: { id: true, lotNumber: true, lotStatus: true, soldQuantityKg: true, reservedQuantityKg: true },
+    select: {
+      id: true,
+      lotNumber: true,
+      lotStatus: true,
+      soldQuantityKg: true,
+      reservedQuantityKg: true,
+    },
   },
 };
 

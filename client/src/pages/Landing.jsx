@@ -31,18 +31,21 @@ export default function Landing() {
         />
         <div className="relative mx-auto max-w-7xl px-4 text-center sm:px-6">
           <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl">
-            Turn scrap into <span className="text-brand-400">value</span>. Buy and sell waste materials
-            responsibly.
+            Turn scrap into <span className="text-brand-400">value</span>. Buy and sell waste
+            materials responsibly.
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-ink-300">
-            MetalMundi connects businesses that generate scrap with buyers who can reprocess it — with transparent
-            pricing, verified sellers and audited transactions.
+            MetalMundi connects businesses that generate scrap with buyers who can reprocess it —
+            with transparent pricing, verified sellers and audited transactions.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link to="/marketplace" className="btn-primary px-6 py-3 text-base">
               Browse materials <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link to="/register" className="btn bg-white/10 px-6 py-3 text-base text-white backdrop-blur hover:bg-white/20">
+            <Link
+              to="/register"
+              className="btn bg-white/10 px-6 py-3 text-base text-white backdrop-blur hover:bg-white/20"
+            >
               Sell your scrap
             </Link>
           </div>
@@ -73,13 +76,20 @@ export default function Landing() {
         <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-2xl font-bold text-ink-900">Fresh on the market</h2>
-            <Link to="/marketplace" className="text-sm font-semibold text-brand-700 hover:underline">
+            <Link
+              to="/marketplace"
+              className="text-sm font-semibold text-brand-700 hover:underline"
+            >
               View all
             </Link>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {featured.map((l) => (
-              <Link key={l.id} to={`/marketplace/${l.id}`} className="card group overflow-hidden transition hover:shadow-lg">
+              <Link
+                key={l.id}
+                to={`/marketplace/${l.id}`}
+                className="card group overflow-hidden transition hover:shadow-lg"
+              >
                 <div className="aspect-[4/3] overflow-hidden bg-ink-100">
                   {l.images?.length ? (
                     <img
@@ -96,7 +106,9 @@ export default function Landing() {
                 <div className="p-4">
                   <h3 className="font-semibold text-ink-900">{l.title}</h3>
                   <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-lg font-bold text-brand-700">{paise(l.pricePerKgPaise)}/kg</span>
+                    <span className="text-lg font-bold text-brand-700">
+                      {paise(l.pricePerKgPaise)}/kg
+                    </span>
                     <span className="text-ink-500">{kg(l.availableQuantityKg)} available</span>
                   </div>
                 </div>
@@ -112,7 +124,9 @@ export default function Landing() {
 function FeatureCard({ icon, title, body }) {
   return (
     <div className="card p-6">
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-brand-100 text-brand-700">{icon}</div>
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
+        {icon}
+      </div>
       <h3 className="mb-1 text-lg font-semibold text-ink-900">{title}</h3>
       <p className="text-sm leading-relaxed text-ink-500">{body}</p>
     </div>

@@ -9,7 +9,11 @@ function disabledInTest() {
 }
 
 const jsonHandler = (_req, res) => {
-  res.status(429).json({ success: false, message: 'Too many requests, please try again later.', code: 'RATE_LIMITED' });
+  res.status(429).json({
+    success: false,
+    message: 'Too many requests, please try again later.',
+    code: 'RATE_LIMITED',
+  });
 };
 
 const apiLimiter = rateLimit({

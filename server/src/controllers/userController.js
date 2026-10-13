@@ -19,9 +19,7 @@ const updateMe = asyncHandler(async (req, res) => {
     data.address = { ...normalizeAddress(req.user.address), ...address };
   }
 
-  const fresh = Object.keys(data).length
-    ? await usersRepo.updateById(req.user.id, data)
-    : req.user;
+  const fresh = Object.keys(data).length ? await usersRepo.updateById(req.user.id, data) : req.user;
 
   return ok(res, { user: serializeUser(fresh) }, 'Profile updated');
 });

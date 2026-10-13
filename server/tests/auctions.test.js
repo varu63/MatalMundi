@@ -189,16 +189,12 @@ describe('Auction approval & public visibility', () => {
     expect(detail.status).toBe(404);
 
     // The seller can see their own pending auction.
-    const own = await request(app)
-      .get(`/api/v1/auctions/${auctionId}`)
-      .set('Cookie', sCookie);
+    const own = await request(app).get(`/api/v1/auctions/${auctionId}`).set('Cookie', sCookie);
     expect(own.status).toBe(200);
     expect(own.body.data.auction.status).toBe('PENDING_APPROVAL');
 
     // Buyers cannot see it either.
-    const asBuyer = await request(app)
-      .get(`/api/v1/auctions/${auctionId}`)
-      .set('Cookie', aCookie);
+    const asBuyer = await request(app).get(`/api/v1/auctions/${auctionId}`).set('Cookie', aCookie);
     expect(asBuyer.status).toBe(404);
 
     // Only admins can approve.
@@ -366,7 +362,11 @@ describe('Bidding rules (server-validated)', () => {
     await request(app)
       .patch('/api/v1/admin/auction-settings')
       .set('Cookie', adminCookie)
-      .send({ antiSnipingEnabled: true, antiSnipingWindowSeconds: 30, antiSnipingExtensionSeconds: 60 })
+      .send({
+        antiSnipingEnabled: true,
+        antiSnipingWindowSeconds: 30,
+        antiSnipingExtensionSeconds: 60,
+      })
       .expect(200);
 
     const { auctionId } = await createLiveAuction(sCookie, adminCookie);
@@ -476,7 +476,7 @@ describe('Winner settlement, payment & completion', () => {
     expect(auction.settlement.platformFeePaise).toBe(fee);
     expect(auction.settlement.pickupCostPaise).toBeGreaterThan(0);
     expect(auction.settlement.sellerPayoutPaise).toBe(
-      gross - fee - auction.settlement.pickupCostPaise,
+      gross - fee - auction.settlement.pickupCostPaise
     );
     expect(auction.winningTotalPaise).toBe(gross);
 
@@ -554,13 +554,13 @@ describe('Winner settlement, payment & completion', () => {
     expect(auction.settlement.quantityKg).toBe(450);
     expect(auction.settlement.grossPaise).toBe(2500 * 450);
     expect(auction.settlement.buyerPayablePaise).toBe(
-      2500 * 450 + Math.round((2500 * 450 * 18) / 100),
+      2500 * 450 + Math.round((2500 * 450 * 18) / 100)
     );
     expect(auction.adjustments).toHaveLength(1);
     expect(auction.adjustments[0].fromQuantityKg).toBe(500);
     expect(auction.adjustments[0].toQuantityKg).toBe(450);
     expect(auction.adjustments[0].previous.buyerPayablePaise).toBe(
-      2500 * 500 + Math.round((2500 * 500 * 18) / 100),
+      2500 * 500 + Math.round((2500 * 500 * 18) / 100)
     );
 
     const order = await prisma.order.findFirst({ where: { auctionId } });
@@ -666,9 +666,7 @@ describe('Admin controls & queue separation', () => {
     expect(queue.body.data).toHaveLength(1);
     expect(queue.body.data[0].saleMode).toBe('NORMAL');
 
-    const mine = await request(app)
-      .get('/api/v1/waste-submissions/my')
-      .set('Cookie', sCookie);
+    const mine = await request(app).get('/api/v1/waste-submissions/my').set('Cookie', sCookie);
     expect(mine.body.data).toHaveLength(2);
     const mineAuction = mine.body.data.find((s) => s.saleMode === 'AUCTION');
     expect(mineAuction).toBeTruthy();
@@ -735,15 +733,11 @@ describe('Authorization & bidder privacy', () => {
     expect(pub.body.data.auction.canBid).toBe(true);
 
     // A logged-in buyer sees exactly the same public view.
-    const buyer = await request(app)
-      .get(`/api/v1/auctions/${auctionId}`)
-      .set('Cookie', aCookie);
+    const buyer = await request(app).get(`/api/v1/auctions/${auctionId}`).set('Cookie', aCookie);
     expect(buyer.body.data.auction.reservePricePerKgPaise).toBeUndefined();
 
     // The seller and admins see the reserve.
-    const owner = await request(app)
-      .get(`/api/v1/auctions/${auctionId}`)
-      .set('Cookie', sCookie);
+    const owner = await request(app).get(`/api/v1/auctions/${auctionId}`).set('Cookie', sCookie);
     expect(owner.body.data.auction.reservePricePerKgPaise).toBe(3000);
 
     const admin = await request(app)

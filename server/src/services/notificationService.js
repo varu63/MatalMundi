@@ -9,7 +9,14 @@ const { NOTIFICATION_TYPE } = require('../utils/constants');
  * Creates a single notification. Never throws into the caller — a failed
  * notification must not roll back the business action that triggered it.
  */
-async function createNotification({ user, title, message, type = NOTIFICATION_TYPE.SYSTEM, relatedType = '', relatedId = null }) {
+async function createNotification({
+  user,
+  title,
+  message,
+  type = NOTIFICATION_TYPE.SYSTEM,
+  relatedType = '',
+  relatedId = null,
+}) {
   try {
     const created = await notificationsRepo.create({
       userId: user,

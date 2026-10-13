@@ -8,7 +8,6 @@ function notFound(req, _res, next) {
   next(ApiError.notFound(`Route not found: ${req.method} ${req.originalUrl}`));
 }
 
-// eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, _next) {
   let error = err;
 

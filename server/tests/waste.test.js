@@ -52,7 +52,8 @@ describe('Waste submission rules', () => {
     await createPricing(category);
 
     let req = request(app).post('/api/v1/waste-submissions').set('Cookie', cookie);
-    req = req.field('materialCategory', String(category.id))
+    req = req
+      .field('materialCategory', String(category.id))
       .field('materialType', 'Aluminium')
       .field('quantityKg', '120')
       .field('condition', 'BALED')
@@ -60,11 +61,19 @@ describe('Waste submission rules', () => {
       .field('description', 'Clean baled aluminium scrap.')
       .field('demandBasis', 'TOTAL')
       .field('demandedPrice', '5000')
-      .field('pickup', JSON.stringify({
-        address: '5 MG Road', city: 'Bengaluru', state: 'Karnataka',
-        postalCode: '560001', contactName: 'Asha', contactPhone: '9876543210',
-      }));
-    req = await req.attach('front', Buffer.from('x'), 'front.png')
+      .field(
+        'pickup',
+        JSON.stringify({
+          address: '5 MG Road',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+          postalCode: '560001',
+          contactName: 'Asha',
+          contactPhone: '9876543210',
+        })
+      );
+    req = await req
+      .attach('front', Buffer.from('x'), 'front.png')
       .attach('back', Buffer.from('x'), 'back.png')
       .attach('left', Buffer.from('x'), 'left.png');
     // missing 'right'
@@ -78,7 +87,8 @@ describe('Waste submission rules', () => {
     await createPricing(category, { materialType: 'Plastics' });
 
     let req = request(app).post('/api/v1/waste-submissions').set('Cookie', cookie);
-    req = req.field('materialCategory', String(category.id))
+    req = req
+      .field('materialCategory', String(category.id))
       .field('materialType', 'HDPE')
       .field('quantityKg', '150')
       .field('condition', 'LOOSE')
@@ -86,10 +96,17 @@ describe('Waste submission rules', () => {
       .field('description', 'Baled HDPE scrap for recycling.')
       .field('demandBasis', 'TOTAL')
       .field('demandedPrice', '3000')
-      .field('pickup', JSON.stringify({
-        address: '7 Link Road', city: 'Delhi', state: 'Delhi',
-        postalCode: '110001', contactName: 'Dev', contactPhone: '9876543211',
-      }));
+      .field(
+        'pickup',
+        JSON.stringify({
+          address: '7 Link Road',
+          city: 'Delhi',
+          state: 'Delhi',
+          postalCode: '110001',
+          contactName: 'Dev',
+          contactPhone: '9876543211',
+        })
+      );
     for (const side of ['front', 'back', 'left', 'right']) {
       req = req.attach(side, Buffer.from('not-an-image'), `${side}.txt`);
     }
@@ -131,8 +148,12 @@ describe('Waste submission rules', () => {
       qualityGrade: 'B',
       description: 'Description of the material for review.',
       pickup: {
-        address: '9 Station Road', city: 'Noida', state: 'UP',
-        postalCode: '201301', contactName: 'Nitin', contactPhone: '9876543212',
+        address: '9 Station Road',
+        city: 'Noida',
+        state: 'UP',
+        postalCode: '201301',
+        contactName: 'Nitin',
+        contactPhone: '9876543212',
       },
       demandBasis: 'TOTAL',
       demandedPrice: 1000,

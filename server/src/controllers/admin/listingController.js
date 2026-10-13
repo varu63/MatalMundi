@@ -19,7 +19,7 @@ async function guardNoActiveReservations(listing) {
   const lot = await lotsRepo.findById(listing.inventoryLotId);
   if (lot && lot.reservedQuantityKg > 0) {
     throw ApiError.conflict(
-      `Cannot change status while ${lot.reservedQuantityKg} kg is reserved by active orders`,
+      `Cannot change status while ${lot.reservedQuantityKg} kg is reserved by active orders`
     );
   }
   return lot;
@@ -89,7 +89,11 @@ const updateListing = asyncHandler(async (req, res) => {
     resourceType: 'MarketplaceListing',
     resourceId: listing.id,
     before,
-    after: { title: updated.title, pricePerKgPaise: updated.pricePerKgPaise, minPurchaseKg: updated.minPurchaseKg },
+    after: {
+      title: updated.title,
+      pricePerKgPaise: updated.pricePerKgPaise,
+      minPurchaseKg: updated.minPurchaseKg,
+    },
     req,
   });
 

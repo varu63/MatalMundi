@@ -18,7 +18,6 @@ async function storageUploadForListing(req, submission) {
   try {
     const folder = 'listings';
     for (const file of files) {
-      // eslint-disable-next-line no-await-in-loop
       const asset = await uploadImage(file.buffer, { folder, mimetype: file.mimetype });
       uploaded.push(asset);
     }

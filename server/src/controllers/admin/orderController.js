@@ -60,7 +60,9 @@ const updateStatus = asyncHandler(async (req, res) => {
 
   // Auction orders follow the auction payment/pickup workflow instead.
   if (order.auctionId) {
-    throw ApiError.conflict('This order was created by an auction. Manage it from Auction Management.');
+    throw ApiError.conflict(
+      'This order was created by an auction. Manage it from Auction Management.'
+    );
   }
 
   const next = req.body.status;
@@ -86,8 +88,11 @@ const updateStatus = asyncHandler(async (req, res) => {
   }
 
   // 2. REJECTED / CANCELLED — release the reservation exactly once.
-  if ((next === ORDER_STATUS.REJECTED || next === ORDER_STATUS.CANCELLED)
-      && inventoryReserved && !inventoryCommitted) {
+  if (
+    (next === ORDER_STATUS.REJECTED || next === ORDER_STATUS.CANCELLED) &&
+    inventoryReserved &&
+    !inventoryCommitted
+  ) {
     await releaseOrderItems(order.items, order.id, actor, `Order ${next}: reservation released`);
     inventoryReserved = false;
   }
@@ -119,14 +124,18 @@ const updateStatus = asyncHandler(async (req, res) => {
     order.buyerId,
     `Order ${STATUS_LABELS[next] || next}`,
     `Your order ${order.orderNumber} is now ${STATUS_LABELS[next] || next}.${req.body.reason ? ` ${req.body.reason}` : ''}`,
-    order.id,
+    order.id
   );
   await recordAudit({
     action: AUDIT_ACTION.ORDER_STATUS,
     resourceType: 'Order',
     resourceId: order.id,
     before: { status: previousStatus },
-    after: { status: next, inventoryReserved: updated.inventoryReserved, inventoryCommitted: updated.inventoryCommitted },
+    after: {
+      status: next,
+      inventoryReserved: updated.inventoryReserved,
+      inventoryCommitted: updated.inventoryCommitted,
+    },
     req,
   });
 

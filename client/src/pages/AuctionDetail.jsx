@@ -37,13 +37,19 @@ export default function AuctionDetail() {
   const [, setTick] = useState(0);
   const lastBidCount = useRef(0);
 
-  const isOwner = auction && user && String(auction.sellerId ?? auction.seller?.id) === String(user.id);
+  const isOwner =
+    auction && user && String(auction.sellerId ?? auction.seller?.id) === String(user.id);
   const isLive = auction?.status === 'ACTIVE' && auction?.canBid;
   const remaining = auction ? countdown(auction.endAt) : '';
 
   const images = useMemo(() => {
     if (!auction?.images) return [];
-    const list = [auction.images.front, auction.images.back, auction.images.left, auction.images.right];
+    const list = [
+      auction.images.front,
+      auction.images.back,
+      auction.images.left,
+      auction.images.right,
+    ];
     if (auction.images.weightEvidence) list.push(auction.images.weightEvidence);
     return [...list, ...(auction.images.additional || [])].filter((i) => i?.url);
   }, [auction]);
@@ -157,11 +163,21 @@ export default function AuctionDetail() {
     );
   }
 
-  const concluded = ['ENDED', 'AWAITING_PAYMENT', 'AWAITING_PICKUP', 'COMPLETED', 'NO_BIDS', 'CANCELLED'].includes(auction.status);
+  const concluded = [
+    'ENDED',
+    'AWAITING_PAYMENT',
+    'AWAITING_PICKUP',
+    'COMPLETED',
+    'NO_BIDS',
+    'CANCELLED',
+  ].includes(auction.status);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800"
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
@@ -171,7 +187,11 @@ export default function AuctionDetail() {
           <div className="card overflow-hidden">
             <div className="aspect-[16/10] bg-ink-100">
               {images[activeImage] ? (
-                <img src={imageUrl(images[activeImage])} alt={auction.materialType} className="h-full w-full object-cover" />
+                <img
+                  src={imageUrl(images[activeImage])}
+                  alt={auction.materialType}
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-ink-400">
                   <Gavel className="h-12 w-12" />
@@ -197,14 +217,17 @@ export default function AuctionDetail() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-xl font-bold text-ink-900">
-                  {auction.materialType} — {auction.quantityKg != null ? kg(auction.quantityKg) : ''}
+                  {auction.materialType} —{' '}
+                  {auction.quantityKg != null ? kg(auction.quantityKg) : ''}
                 </h1>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-500">
                   <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {auction.location?.city}, {auction.location?.state}
+                    <MapPin className="h-3.5 w-3.5" /> {auction.location?.city},{' '}
+                    {auction.location?.state}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Scale className="h-3.5 w-3.5" /> {auction.condition?.toLowerCase()} · grade {auction.qualityGrade}
+                    <Scale className="h-3.5 w-3.5" /> {auction.condition?.toLowerCase()} · grade{' '}
+                    {auction.qualityGrade}
                   </span>
                   <span className="font-mono text-xs">{auction.auctionNumber}</span>
                 </p>
@@ -212,12 +235,24 @@ export default function AuctionDetail() {
               <StatusBadge status={auction.status} />
             </div>
             {auction.inspectionNotes && (
-              <p className="mt-4 rounded-lg bg-ink-50 p-3 text-sm text-ink-600">{auction.inspectionNotes}</p>
+              <p className="mt-4 rounded-lg bg-ink-50 p-3 text-sm text-ink-600">
+                {auction.inspectionNotes}
+              </p>
             )}
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <Info label="Starting price" value={`${paise(auction.startingPricePerKgPaise)}/kg`} />
-              <Info label="Min. increment" value={auction.minIncrementType === 'PERCENT' ? `${auction.minIncrementValue}%` : `${paise(auction.minIncrementValue)}/kg`} />
-              <Info label="Bids" value={`${auction.bidCount} (${auction.bidderCount} bidder${auction.bidderCount === 1 ? '' : 's'})`} />
+              <Info
+                label="Min. increment"
+                value={
+                  auction.minIncrementType === 'PERCENT'
+                    ? `${auction.minIncrementValue}%`
+                    : `${paise(auction.minIncrementValue)}/kg`
+                }
+              />
+              <Info
+                label="Bids"
+                value={`${auction.bidCount} (${auction.bidderCount} bidder${auction.bidderCount === 1 ? '' : 's'})`}
+              />
               <Info label="Extensions" value={auction.extensionCount || 0} />
             </dl>
             {isOwner && auction.reservePricePerKgPaise != null && (
@@ -239,10 +274,14 @@ export default function AuctionDetail() {
                 {bids.map((b) => (
                   <li key={b.id} className="flex items-center justify-between py-2.5 text-sm">
                     <span className="flex items-center gap-2">
-                      <span className={`font-semibold ${b.isOwn ? 'text-brand-700' : 'text-ink-800'}`}>
+                      <span
+                        className={`font-semibold ${b.isOwn ? 'text-brand-700' : 'text-ink-800'}`}
+                      >
                         {paise(b.bidPerKgPaise)}/kg
                       </span>
-                      {b.isOwn ? <span className="chip bg-brand-100 text-brand-700">You</span> : null}
+                      {b.isOwn ? (
+                        <span className="chip bg-brand-100 text-brand-700">You</span>
+                      ) : null}
                       <StatusBadge status={b.status} />
                     </span>
                     <span className="text-xs text-ink-400">{dateTime(b.createdAt)}</span>
@@ -259,7 +298,9 @@ export default function AuctionDetail() {
         {/* Right: live bid box */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           <div className="card overflow-hidden">
-            <div className={`p-5 ${isLive ? 'bg-gradient-to-br from-brand-600 to-brand-700 text-white' : 'bg-ink-900 text-white'}`}>
+            <div
+              className={`p-5 ${isLive ? 'bg-gradient-to-br from-brand-600 to-brand-700 text-white' : 'bg-ink-900 text-white'}`}
+            >
               <p className="text-xs uppercase tracking-wide opacity-80">
                 {auction.currentHighestBidPerKgPaise ? 'Current highest bid' : 'Starting price'}
               </p>
@@ -288,12 +329,17 @@ export default function AuctionDetail() {
                 <div className="rounded-lg border border-ink-200 bg-ink-50 p-3 text-sm">
                   {auction.winnerSelectionReason === 'WINNER' && (
                     <p className="flex items-center gap-2 font-medium text-brand-700">
-                      <TrendingUp className="h-4 w-4" /> Sold at {paise(auction.winningBidPerKgPaise)}/kg
+                      <TrendingUp className="h-4 w-4" /> Sold at{' '}
+                      {paise(auction.winningBidPerKgPaise)}/kg
                     </p>
                   )}
-                  {auction.winnerSelectionReason === 'NO_BIDS' && <p className="text-ink-600">Ended with no bids.</p>}
+                  {auction.winnerSelectionReason === 'NO_BIDS' && (
+                    <p className="text-ink-600">Ended with no bids.</p>
+                  )}
                   {auction.winnerSelectionReason === 'RESERVE_NOT_MET' && (
-                    <p className="text-ink-600">Ended — the best bid did not reach the seller's reserve price.</p>
+                    <p className="text-ink-600">
+                      Ended — the best bid did not reach the seller's reserve price.
+                    </p>
                   )}
                   {['CANCELLED', 'PAYMENT_FAILED'].includes(auction.winnerSelectionReason) && (
                     <p className="text-ink-600">This auction was cancelled.</p>
@@ -305,7 +351,8 @@ export default function AuctionDetail() {
                 <>
                   {outbidNotice && (
                     <p className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 p-2.5 text-xs text-orange-800">
-                      <AlertTriangle className="h-4 w-4" /> You've been outbid — place a higher bid to stay in front.
+                      <AlertTriangle className="h-4 w-4" /> You've been outbid — place a higher bid
+                      to stay in front.
                     </p>
                   )}
                   {user ? (
@@ -322,8 +369,9 @@ export default function AuctionDetail() {
                           placeholder={`${minNextPaise / 100}`}
                         />
                         <p className="mt-1 text-xs text-ink-500">
-                          Minimum next bid: <strong>{paise(minNextPaise)}/kg</strong> · total at this price for{' '}
-                          {kg(auction.quantityKg)} ≈ {paise(Math.round((minNextPaise * (auction.quantityKg || 0))))}
+                          Minimum next bid: <strong>{paise(minNextPaise)}/kg</strong> · total at
+                          this price for {kg(auction.quantityKg)} ≈{' '}
+                          {paise(Math.round(minNextPaise * (auction.quantityKg || 0)))}
                         </p>
                       </div>
                       {error && <p className="text-sm text-red-600">{error}</p>}

@@ -35,7 +35,12 @@ const register = asyncHandler(async (req, res) => {
 
   const token = signToken(user);
   setAuthCookie(res, token);
-  await recordAudit({ action: AUDIT_ACTION.REGISTER, resourceType: 'User', resourceId: user.id, req });
+  await recordAudit({
+    action: AUDIT_ACTION.REGISTER,
+    resourceType: 'User',
+    resourceId: user.id,
+    req,
+  });
 
   const data = { user: serializeUser(user) };
   // In development the verification token is returned so email flows can be
@@ -61,7 +66,12 @@ const login = asyncHandler(async (req, res) => {
 
   const token = signToken(fresh);
   setAuthCookie(res, token);
-  await recordAudit({ action: AUDIT_ACTION.LOGIN, resourceType: 'User', resourceId: fresh.id, req });
+  await recordAudit({
+    action: AUDIT_ACTION.LOGIN,
+    resourceType: 'User',
+    resourceId: fresh.id,
+    req,
+  });
 
   return ok(res, { user: serializeUser(fresh) }, 'Logged in successfully');
 });
@@ -70,7 +80,12 @@ const login = asyncHandler(async (req, res) => {
 const logout = asyncHandler(async (req, res) => {
   clearAuthCookie(res);
   if (req.user) {
-    await recordAudit({ action: AUDIT_ACTION.LOGOUT, resourceType: 'User', resourceId: req.user.id, req });
+    await recordAudit({
+      action: AUDIT_ACTION.LOGOUT,
+      resourceType: 'User',
+      resourceId: req.user.id,
+      req,
+    });
   }
   return ok(res, null, 'Logged out successfully');
 });

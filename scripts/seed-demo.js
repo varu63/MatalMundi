@@ -21,7 +21,14 @@ dotenv.config({ path: path.resolve(__dirname, '../server/.env') });
 
 const env = require('../server/src/config/env');
 const { prisma } = require('../server/src/config/db');
-const { users, categories, pricing, submissions, lots, listings } = require('../server/src/repositories');
+const {
+  users,
+  categories,
+  pricing,
+  submissions,
+  lots,
+  listings,
+} = require('../server/src/repositories');
 const { ROLES, SUBMISSION_STATUS, LISTING_STATUS } = require('../server/src/utils/constants');
 const { computeValuation } = require('../server/src/services/pricingService');
 
@@ -30,7 +37,7 @@ const API_PUBLIC_URL = process.env.API_PUBLIC_URL || 'http://localhost:5000';
 // 1×1 tiled PNG placeholders so the demo needs no Cloudinary account.
 const PLACEHOLDER_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  'base64',
+  'base64'
 );
 
 function writePlaceholder(name) {
@@ -38,7 +45,11 @@ function writePlaceholder(name) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${name}.png`);
   fs.writeFileSync(file, PLACEHOLDER_PNG);
-  return { url: `${API_PUBLIC_URL}/uploads/seed/${name}.png`, publicId: `seed/${name}.png`, provider: 'local' };
+  return {
+    url: `${API_PUBLIC_URL}/uploads/seed/${name}.png`,
+    publicId: `seed/${name}.png`,
+    provider: 'local',
+  };
 }
 
 async function ensureAdmin() {
@@ -70,7 +81,12 @@ async function ensureUser() {
       role: ROLES.USER,
       accountStatus: 'ACTIVE',
       emailVerificationVerified: true,
-      address: { line1: 'B-42, Sector 18', city: 'Gurugram', state: 'Haryana', postalCode: '122015' },
+      address: {
+        line1: 'B-42, Sector 18',
+        city: 'Gurugram',
+        state: 'Haryana',
+        postalCode: '122015',
+      },
     });
   }
   return user;

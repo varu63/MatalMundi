@@ -6,11 +6,9 @@ const env = require('../config/env');
 const AUTH_COOKIE = 'mm.token';
 
 function signToken(user) {
-  return jwt.sign(
-    { sub: String(user.id || user._id), role: user.role },
-    env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn },
-  );
+  return jwt.sign({ sub: String(user.id || user._id), role: user.role }, env.jwtSecret, {
+    expiresIn: env.jwtExpiresIn,
+  });
 }
 
 function verifyToken(token) {

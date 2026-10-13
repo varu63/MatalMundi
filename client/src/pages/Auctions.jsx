@@ -32,11 +32,14 @@ export default function Auctions() {
       }
       setParams(next);
     },
-    [setParams],
+    [setParams]
   );
 
   useEffect(() => {
-    endpoints.categories.list().then((r) => setCategories(r.data.data.categories || [])).catch(() => {});
+    endpoints.categories
+      .list()
+      .then((r) => setCategories(r.data.data.categories || []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -78,7 +81,12 @@ export default function Auctions() {
         >
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-400" />
-            <input name="search" defaultValue={search} placeholder="Search auctions, material…" className="input pl-9" />
+            <input
+              name="search"
+              defaultValue={search}
+              placeholder="Search auctions, material…"
+              className="input pl-9"
+            />
           </div>
           <button type="submit" className="btn-primary">
             Search
@@ -133,7 +141,11 @@ export default function Auctions() {
         </div>
       )}
 
-      <Pagination page={page} pages={data.meta?.totalPages || 1} onChange={(p) => buildParams({ ...Object.fromEntries(params), page: p })} />
+      <Pagination
+        page={page}
+        pages={data.meta?.totalPages || 1}
+        onChange={(p) => buildParams({ ...Object.fromEntries(params), page: p })}
+      />
     </div>
   );
 }
@@ -144,16 +156,25 @@ function AuctionCard({ auction: a }) {
   const current = a.currentHighestBidPerKgPaise ?? a.startingPricePerKgPaise;
 
   return (
-    <Link to={`/auctions/${a.id}`} className="card group overflow-hidden transition hover:shadow-lg">
+    <Link
+      to={`/auctions/${a.id}`}
+      className="card group overflow-hidden transition hover:shadow-lg"
+    >
       <div className="relative aspect-[4/3] overflow-hidden bg-ink-100">
         {firstImage(a.images) ? (
-          <img src={firstImage(a.images)} alt={a.materialType} className="h-full w-full object-cover transition group-hover:scale-105" />
+          <img
+            src={firstImage(a.images)}
+            alt={a.materialType}
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-ink-400">
             <Gavel className="h-10 w-10" />
           </div>
         )}
-        <span className={`absolute left-2 top-2 rounded-md px-2 py-0.5 text-xs font-semibold ${live ? 'bg-brand-600 text-white' : 'bg-ink-900/80 text-white'}`}>
+        <span
+          className={`absolute left-2 top-2 rounded-md px-2 py-0.5 text-xs font-semibold ${live ? 'bg-brand-600 text-white' : 'bg-ink-900/80 text-white'}`}
+        >
           {live ? `Live · ${remaining || 'ending'}` : 'Starting soon'}
         </span>
       </div>
@@ -166,7 +187,9 @@ function AuctionCard({ auction: a }) {
         </p>
         <div className="mt-3 flex items-end justify-between">
           <div>
-            <p className="text-xs text-ink-500">{a.currentHighestBidPerKgPaise ? 'Current bid' : 'Starting price'}</p>
+            <p className="text-xs text-ink-500">
+              {a.currentHighestBidPerKgPaise ? 'Current bid' : 'Starting price'}
+            </p>
             <p className="text-lg font-bold text-brand-700">{paise(current)}/kg</p>
           </div>
           <span className="chip bg-ink-100 text-ink-700">

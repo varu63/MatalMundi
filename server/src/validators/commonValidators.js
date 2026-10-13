@@ -2,9 +2,7 @@
 
 const { z } = require('zod');
 
-const objectId = z
-  .string()
-  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid identifier');
+const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid identifier');
 
 const optionalString = (max = 300) => z.string().trim().max(max).optional();
 

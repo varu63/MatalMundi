@@ -22,7 +22,6 @@ const { parsePage } = require('../../utils/numbers');
 const {
   AUCTION_STATUS,
   AUCTION_RESULT,
-  BID_STATUS,
   SUBMISSION_STATUS,
   ORDER_STATUS,
   AUDIT_ACTION,
@@ -55,7 +54,11 @@ const listAuctions = asyncHandler(async (req, res) => {
     orderBy: { createdAt: 'desc' },
     variant: 'admin',
   });
-  return paginated(res, rows.map((r) => serializeAuction(r, { variant: 'admin' })), { page, limit, total });
+  return paginated(
+    res,
+    rows.map((r) => serializeAuction(r, { variant: 'admin' })),
+    { page, limit, total }
+  );
 });
 
 /** GET /admin/auctions/:id — full detail (reserve, settlement, order, parties). */
@@ -74,7 +77,11 @@ const getAuctionBids = asyncHandler(async (req, res) => {
     take: limit,
     includeBidder: true,
   });
-  return paginated(res, rows.map((b) => serializeAuctionBid(b, { isAdmin: true })), { page, limit, total });
+  return paginated(
+    res,
+    rows.map((b) => serializeAuctionBid(b, { isAdmin: true })),
+    { page, limit, total }
+  );
 });
 
 /**
@@ -94,7 +101,7 @@ const approveAuction = asyncHandler(async (req, res) => {
     duration = Number(req.body.durationMinutes);
     if (duration < settings.minDurationMinutes || duration > settings.maxDurationMinutes) {
       throw ApiError.badRequest(
-        `Duration must be between ${settings.minDurationMinutes} and ${settings.maxDurationMinutes} minutes`,
+        `Duration must be between ${settings.minDurationMinutes} and ${settings.maxDurationMinutes} minutes`
       );
     }
   }
@@ -134,14 +141,20 @@ const approveAuction = asyncHandler(async (req, res) => {
     startsLater
       ? `Auction ${auction.auctionNumber} is approved and starts at ${startAt.toISOString()}.`
       : `Auction ${auction.auctionNumber} is now live with a starting price of ${rupees(startingPricePerKgPaise)}/kg.`,
-    auction.id,
+    auction.id
   );
   await recordAudit({
     action: AUDIT_ACTION.AUCTION_APPROVE,
     resourceType: 'WasteAuction',
     resourceId: auction.id,
     before: { status: auction.status, startingPricePerKgPaise: auction.startingPricePerKgPaise },
-    after: { status: updated.status, startingPricePerKgPaise, startAt, endAt, durationMinutes: duration },
+    after: {
+      status: updated.status,
+      startingPricePerKgPaise,
+      startAt,
+      endAt,
+      durationMinutes: duration,
+    },
     meta: { note: req.body.note || '' },
     req,
   });
@@ -176,7 +189,7 @@ const rejectAuction = asyncHandler(async (req, res) => {
     auction.sellerId,
     'Auction rejected',
     `Auction ${auction.auctionNumber} was rejected. Reason: ${req.body.reason}`,
-    auction.id,
+    auction.id
   );
   await recordAudit({
     action: AUDIT_ACTION.AUCTION_REJECT,
@@ -197,7 +210,11 @@ const rejectAuction = asyncHandler(async (req, res) => {
 const updateAuction = asyncHandler(async (req, res) => {
   const auction = await loadRaw(req.params.id);
 
-  const OPEN_STATUSES = [AUCTION_STATUS.PENDING_APPROVAL, AUCTION_STATUS.SCHEDULED, AUCTION_STATUS.ACTIVE];
+  const OPEN_STATUSES = [
+    AUCTION_STATUS.PENDING_APPROVAL,
+    AUCTION_STATUS.SCHEDULED,
+    AUCTION_STATUS.ACTIVE,
+  ];
   if (!OPEN_STATUSES.includes(auction.status)) {
     throw ApiError.conflict('Only pending, scheduled or live auctions can be adjusted');
   }
@@ -219,19 +236,22 @@ const updateAuction = asyncHandler(async (req, res) => {
 
   const data = {};
   const b = req.body;
-  if (b.startingPricePerKgPaise != null) data.startingPricePerKgPaise = Math.round(Number(b.startingPricePerKgPaise));
+  if (b.startingPricePerKgPaise != null)
+    data.startingPricePerKgPaise = Math.round(Number(b.startingPricePerKgPaise));
   if (b.minIncrementType != null) data.minIncrementType = b.minIncrementType;
   if (b.minIncrementValue != null) data.minIncrementValue = Number(b.minIncrementValue);
   if (b.antiSnipingEnabled != null) data.antiSnipingEnabled = Boolean(b.antiSnipingEnabled);
-  if (b.antiSnipingWindowSeconds != null) data.antiSnipingWindowSeconds = Number(b.antiSnipingWindowSeconds);
-  if (b.antiSnipingExtensionSeconds != null) data.antiSnipingExtensionSeconds = Number(b.antiSnipingExtensionSeconds);
+  if (b.antiSnipingWindowSeconds != null)
+    data.antiSnipingWindowSeconds = Number(b.antiSnipingWindowSeconds);
+  if (b.antiSnipingExtensionSeconds != null)
+    data.antiSnipingExtensionSeconds = Number(b.antiSnipingExtensionSeconds);
   if (b.inspectionNotes != null) data.inspectionNotes = b.inspectionNotes;
 
   if (b.durationMinutes != null) {
     const duration = Number(b.durationMinutes);
     if (duration < settings.minDurationMinutes || duration > settings.maxDurationMinutes) {
       throw ApiError.badRequest(
-        `Duration must be between ${settings.minDurationMinutes} and ${settings.maxDurationMinutes} minutes`,
+        `Duration must be between ${settings.minDurationMinutes} and ${settings.maxDurationMinutes} minutes`
       );
     }
     data.durationMinutes = duration;
@@ -288,7 +308,10 @@ const cancelAuction = asyncHandler(async (req, res) => {
   // Any live bids are void; a linked order (winner existed) is cancelled.
   await auctionBidsRepo.markAllOpenAsLost(auction.id);
 
-  if (auction.status === AUCTION_STATUS.AWAITING_PAYMENT || auction.status === AUCTION_STATUS.AWAITING_PICKUP) {
+  if (
+    auction.status === AUCTION_STATUS.AWAITING_PAYMENT ||
+    auction.status === AUCTION_STATUS.AWAITING_PICKUP
+  ) {
     const full = await auctionsRepo.findById(auction.id, { variant: 'admin' });
     const orderId = full.order ? full.order.id : null;
     const order = orderId ? await ordersRepo.findById(orderId) : null;
@@ -298,14 +321,19 @@ const cancelAuction = asyncHandler(async (req, res) => {
         rejectionReason: `Auction cancelled: ${reason}`,
         statusHistory: [
           ...(Array.isArray(order.statusHistory) ? order.statusHistory : []),
-          { status: ORDER_STATUS.CANCELLED, at: new Date(), by: req.user.id, note: `Auction cancelled: ${reason}` },
+          {
+            status: ORDER_STATUS.CANCELLED,
+            at: new Date(),
+            by: req.user.id,
+            note: `Auction cancelled: ${reason}`,
+          },
         ],
       });
       await notifyOrder(
         order.buyerId,
         'Auction order cancelled',
         `Order ${order.orderNumber} was cancelled. Reason: ${reason}`,
-        order.id,
+        order.id
       );
     }
   }
@@ -313,19 +341,19 @@ const cancelAuction = asyncHandler(async (req, res) => {
   const bidderIds = await auctionBidsRepo.distinctBidders(auction.id);
   for (const bidderId of bidderIds) {
     if (String(bidderId) === String(auction.sellerId)) continue;
-    // eslint-disable-next-line no-await-in-loop
+
     await notifyAuction(
       bidderId,
       'Auction cancelled',
       `Auction ${auction.auctionNumber} was cancelled by the platform. Reason: ${reason}`,
-      auction.id,
+      auction.id
     );
   }
   await notifyAuction(
     auction.sellerId,
     'Your auction was cancelled',
     `Auction ${auction.auctionNumber} was cancelled. Reason: ${reason}`,
-    auction.id,
+    auction.id
   );
 
   await recordAudit({
@@ -348,7 +376,9 @@ const cancelAuction = asyncHandler(async (req, res) => {
 const paymentReceived = asyncHandler(async (req, res) => {
   const auction = await loadRaw(req.params.id);
   if (auction.status !== AUCTION_STATUS.AWAITING_PAYMENT) {
-    throw ApiError.conflict(`Payment can only be recorded while awaiting payment (status: ${auction.status})`);
+    throw ApiError.conflict(
+      `Payment can only be recorded while awaiting payment (status: ${auction.status})`
+    );
   }
 
   const updated = await auctionsRepo.updateById(auction.id, {
@@ -368,14 +398,19 @@ const paymentReceived = asyncHandler(async (req, res) => {
         status: ORDER_STATUS.PROCESSING,
         statusHistory: [
           ...(Array.isArray(order.statusHistory) ? order.statusHistory : []),
-          { status: ORDER_STATUS.PROCESSING, at: new Date(), by: req.user.id, note: `Payment received for auction ${auction.auctionNumber}` },
+          {
+            status: ORDER_STATUS.PROCESSING,
+            at: new Date(),
+            by: req.user.id,
+            note: `Payment received for auction ${auction.auctionNumber}`,
+          },
         ],
       });
       await notifyOrder(
         order.buyerId,
         'Payment recorded',
         `Payment for auction ${auction.auctionNumber} (order ${order.orderNumber}) was recorded. We will arrange pickup.`,
-        order.id,
+        order.id
       );
     }
   }
@@ -384,13 +419,17 @@ const paymentReceived = asyncHandler(async (req, res) => {
     auction.sellerId,
     'Auction payment received',
     `The buyer of auction ${auction.auctionNumber} has paid. Pickup can now be arranged.`,
-    auction.id,
+    auction.id
   );
   await recordAudit({
     action: AUDIT_ACTION.AUCTION_PAYMENT,
     resourceType: 'WasteAuction',
     resourceId: auction.id,
-    after: { status: updated.status, provider: req.body.provider || 'MANUAL', reference: req.body.reference || '' },
+    after: {
+      status: updated.status,
+      provider: req.body.provider || 'MANUAL',
+      reference: req.body.reference || '',
+    },
     req,
   });
 
@@ -406,12 +445,15 @@ const paymentReceived = asyncHandler(async (req, res) => {
 const completeAuction = asyncHandler(async (req, res) => {
   const auction = await loadRaw(req.params.id);
   if (auction.status !== AUCTION_STATUS.AWAITING_PICKUP) {
-    throw ApiError.conflict(`Auction can only be completed while awaiting pickup (status: ${auction.status})`);
+    throw ApiError.conflict(
+      `Auction can only be completed while awaiting pickup (status: ${auction.status})`
+    );
   }
 
-  const verifiedKg = req.body.verifiedQuantityKg != null
-    ? Number(req.body.verifiedQuantityKg)
-    : Number(auction.quantityKg);
+  const verifiedKg =
+    req.body.verifiedQuantityKg != null
+      ? Number(req.body.verifiedQuantityKg)
+      : Number(auction.quantityKg);
   const adjustments = Array.isArray(auction.adjustments) ? [...auction.adjustments] : [];
   let settlement = auction.settlement || {};
   let winningTotalPaise = auction.winningTotalPaise;
@@ -480,9 +522,15 @@ const completeAuction = asyncHandler(async (req, res) => {
         status: ORDER_STATUS.DELIVERED,
         statusHistory: [
           ...(Array.isArray(order.statusHistory) ? order.statusHistory : []),
-          { status: ORDER_STATUS.DELIVERED, at: new Date(), by: req.user.id, note: `Auction completed — verified ${verifiedKg} kg` },
+          {
+            status: ORDER_STATUS.DELIVERED,
+            at: new Date(),
+            by: req.user.id,
+            note: `Auction completed — verified ${verifiedKg} kg`,
+          },
         ],
-        notes: `${order.notes}\nAdjustment: verified quantity ${verifiedKg} kg (listed ${auction.quantityKg} kg).`.trim(),
+        notes:
+          `${order.notes}\nAdjustment: verified quantity ${verifiedKg} kg (listed ${auction.quantityKg} kg).`.trim(),
       });
     }
   }
@@ -497,14 +545,14 @@ const completeAuction = asyncHandler(async (req, res) => {
     auction.sellerId,
     'Auction completed',
     `Auction ${auction.auctionNumber} is complete. Final quantity ${verifiedKg} kg. Payout: ${rupees(settlement.sellerPayoutPaise ?? 0)}.`,
-    auction.id,
+    auction.id
   );
   if (auction.winnerId) {
     await notifyAuction(
       auction.winnerId,
       'Your auction order is complete',
       `Auction ${auction.auctionNumber} is complete. Final amount: ${rupees(settlement.buyerPayablePaise ?? 0)}.`,
-      auction.id,
+      auction.id
     );
   }
   await recordAudit({
@@ -540,7 +588,8 @@ const updateSettings = asyncHandler(async (req, res) => {
     minIncrementValue: req.body.minIncrementValue ?? current.minIncrementValue,
     antiSnipingEnabled: req.body.antiSnipingEnabled ?? current.antiSnipingEnabled,
     antiSnipingWindowSeconds: req.body.antiSnipingWindowSeconds ?? current.antiSnipingWindowSeconds,
-    antiSnipingExtensionSeconds: req.body.antiSnipingExtensionSeconds ?? current.antiSnipingExtensionSeconds,
+    antiSnipingExtensionSeconds:
+      req.body.antiSnipingExtensionSeconds ?? current.antiSnipingExtensionSeconds,
   };
 
   if (merged.minDurationMinutes > merged.defaultDurationMinutes) {
@@ -549,7 +598,9 @@ const updateSettings = asyncHandler(async (req, res) => {
   if (merged.defaultDurationMinutes > merged.maxDurationMinutes) {
     throw ApiError.badRequest('Default duration cannot exceed the maximum duration');
   }
-  const allowed = Array.isArray(merged.allowedDurationsMinutes) ? merged.allowedDurationsMinutes.map(Number) : [];
+  const allowed = Array.isArray(merged.allowedDurationsMinutes)
+    ? merged.allowedDurationsMinutes.map(Number)
+    : [];
   if (allowed.some((d) => d < merged.minDurationMinutes || d > merged.maxDurationMinutes)) {
     throw ApiError.badRequest('Allowed durations must fall within the min/max duration bounds');
   }

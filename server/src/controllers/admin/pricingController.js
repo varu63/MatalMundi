@@ -72,11 +72,17 @@ const updatePricing = asyncHandler(async (req, res) => {
   if (req.body.materialType !== undefined) data.materialType = req.body.materialType;
   if (req.body.ratePerKg !== undefined) data.ratePerKgPaise = moneyToPaise(req.body.ratePerKg);
   if (req.body.qualityMultipliers) {
-    data.qualityMultipliers = { ...(config.qualityMultipliers || {}), ...req.body.qualityMultipliers };
+    data.qualityMultipliers = {
+      ...(config.qualityMultipliers || {}),
+      ...req.body.qualityMultipliers,
+    };
   }
-  if (req.body.basePickupCharge !== undefined) data.basePickupChargePaise = moneyToPaise(req.body.basePickupCharge);
-  if (req.body.perKmCharge !== undefined) data.perKmChargePaise = moneyToPaise(req.body.perKmCharge);
-  if (req.body.platformFeePercent !== undefined) data.platformFeePercent = req.body.platformFeePercent;
+  if (req.body.basePickupCharge !== undefined)
+    data.basePickupChargePaise = moneyToPaise(req.body.basePickupCharge);
+  if (req.body.perKmCharge !== undefined)
+    data.perKmChargePaise = moneyToPaise(req.body.perKmCharge);
+  if (req.body.platformFeePercent !== undefined)
+    data.platformFeePercent = req.body.platformFeePercent;
   if (req.body.taxPercent !== undefined) data.taxPercent = req.body.taxPercent;
   if (req.body.notes !== undefined) data.notes = req.body.notes;
 
@@ -101,7 +107,11 @@ const togglePricing = asyncHandler(async (req, res) => {
   const active = Boolean(req.body.active);
   const updated = await pricingRepo.updateById(config.id, { active });
 
-  return ok(res, { config: serializePricing(updated) }, `Pricing rule ${active ? 'activated' : 'deactivated'}`);
+  return ok(
+    res,
+    { config: serializePricing(updated) },
+    `Pricing rule ${active ? 'activated' : 'deactivated'}`
+  );
 });
 
 module.exports = { listPricing, createPricing, updatePricing, togglePricing };

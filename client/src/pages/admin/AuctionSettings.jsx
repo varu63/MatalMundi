@@ -132,7 +132,8 @@ export default function AdminAuctionSettings() {
               <Settings2 className="h-4 w-4 text-brand-600" /> Auction settings
             </h2>
             <p className="mt-0.5 text-xs text-ink-500">
-              Platform-wide defaults for seller auctions: eligibility, durations, bid increments and anti-sniping.
+              Platform-wide defaults for seller auctions: eligibility, durations, bid increments and
+              anti-sniping.
             </p>
           </div>
           <button type="submit" className="btn-primary shrink-0" disabled={saving}>
@@ -157,13 +158,18 @@ export default function AdminAuctionSettings() {
                 required
               />
               <p className="mt-1 text-xs text-ink-400">
-                Auctions below this quantity are rejected at submission time. Normal sales keep their own minimum.
+                Auctions below this quantity are rejected at submission time. Normal sales keep
+                their own minimum.
               </p>
             </div>
             <div>
               <label className="label">Minimum bid increment</label>
               <div className="flex gap-2">
-                <select className="input w-36" value={form.minIncrementType} onChange={set('minIncrementType')}>
+                <select
+                  className="input w-36"
+                  value={form.minIncrementType}
+                  onChange={set('minIncrementType')}
+                >
                   <option value="FIXED">Fixed (₹)</option>
                   <option value="PERCENT">Percent (%)</option>
                 </select>
@@ -246,8 +252,8 @@ export default function AdminAuctionSettings() {
               required
             />
             <p className="mt-1 text-xs text-ink-400">
-              The options a seller can pick from. Must fall within the min/max bounds. Admins may always set custom
-              durations when approving.
+              The options a seller can pick from. Must fall within the min/max bounds. Admins may
+              always set custom durations when approving.
             </p>
           </div>
         </section>
@@ -304,10 +310,19 @@ export default function AdminAuctionSettings() {
           {settings ? (
             <dl className="mt-3 space-y-2 text-sm">
               <Row label="Min auction quantity" value={`${settings.minAuctionQuantityKg} kg`} />
-              <Row label="Seller picks duration" value={settings.sellerCanChooseDuration ? 'Yes' : 'No'} />
+              <Row
+                label="Seller picks duration"
+                value={settings.sellerCanChooseDuration ? 'Yes' : 'No'}
+              />
               <Row label="Default duration" value={`${settings.defaultDurationMinutes} min`} />
-              <Row label="Min / max duration" value={`${settings.minDurationMinutes} / ${settings.maxDurationMinutes} min`} />
-              <Row label="Allowed durations" value={(settings.allowedDurationsMinutes || []).join(', ') || '—'} />
+              <Row
+                label="Min / max duration"
+                value={`${settings.minDurationMinutes} / ${settings.maxDurationMinutes} min`}
+              />
+              <Row
+                label="Allowed durations"
+                value={(settings.allowedDurationsMinutes || []).join(', ') || '—'}
+              />
               <Row
                 label="Min increment"
                 value={
@@ -324,14 +339,16 @@ export default function AdminAuctionSettings() {
                     : 'Off'
                 }
               />
-              {settings.updatedAt && <Row label="Last updated" value={new Date(settings.updatedAt).toLocaleString()} />}
+              {settings.updatedAt && (
+                <Row label="Last updated" value={new Date(settings.updatedAt).toLocaleString()} />
+              )}
             </dl>
           ) : (
             <p className="mt-2 text-sm text-ink-500">Not loaded.</p>
           )}
           <p className="mt-4 text-xs text-ink-400">
-            Changes are audited. They apply to new auctions and to admin approvals — live auctions with bids are never
-            silently changed.
+            Changes are audited. They apply to new auctions and to admin approvals — live auctions
+            with bids are never silently changed.
           </p>
         </div>
       </aside>

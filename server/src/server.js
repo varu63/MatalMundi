@@ -48,7 +48,9 @@ async function start() {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
   } catch (err) {
     // Never start serving as though the app were ready without a database.
-    logger.error(`Unable to establish PostgreSQL connection. Server will not start. (${err.message})`);
+    logger.error(
+      `Unable to establish PostgreSQL connection. Server will not start. (${err.message})`
+    );
     process.exit(1);
   }
 }

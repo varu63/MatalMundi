@@ -49,8 +49,7 @@ function computeValuation({ pricingConfig, quantityKg, qualityGrade, pickup = {}
     pricingConfig.perKmChargePaise ?? Math.round(env.business.perKmCharge * 100);
   const pickupCostPaise = Math.round(basePickupChargePaise + dist.distanceKm * perKmChargePaise);
 
-  const platformFeePercent =
-    pricingConfig.platformFeePercent ?? env.business.platformFeePercent;
+  const platformFeePercent = pricingConfig.platformFeePercent ?? env.business.platformFeePercent;
   const platformFeePaise = percentOfPaise(materialValuePaise, platformFeePercent);
 
   const estimatedPayoutPaise = materialValuePaise - pickupCostPaise - platformFeePaise;
@@ -98,7 +97,12 @@ function computePickupCostPaise(pricingConfig, pickup = {}) {
 }
 
 /** Normalises a seller's demanded price into both total and per-kg paise. */
-function normalizeDemand({ demandBasis, demandedTotalPaise = 0, demandedPerKgPaise = 0, quantityKg }) {
+function normalizeDemand({
+  demandBasis,
+  demandedTotalPaise = 0,
+  demandedPerKgPaise = 0,
+  quantityKg,
+}) {
   const weight = Number(quantityKg) || 0;
   if (demandBasis === DEMAND_BASIS.PER_KG) {
     const perKg = Math.round(Number(demandedPerKgPaise) || 0);

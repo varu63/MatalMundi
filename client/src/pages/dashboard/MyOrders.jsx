@@ -54,7 +54,9 @@ export default function MyOrders() {
                   <tr key={o.id} className="hover:bg-ink-50/50">
                     <td className="px-5 py-3 font-medium text-ink-800">{o.orderNumber}</td>
                     <td className="px-5 py-3 text-ink-600">
-                      {o.items.map((it) => `${kg(it.weightKg)} × ${it.listing?.title || 'material'}`).join(', ')}
+                      {o.items
+                        .map((it) => `${kg(it.weightKg)} × ${it.listing?.title || 'material'}`)
+                        .join(', ')}
                     </td>
                     <td className="px-5 py-3 font-semibold">{paise(o.totalPaise)}</td>
                     <td className="px-5 py-3">

@@ -295,8 +295,14 @@ function serializeOrder(row) {
     buyer: relation(row, 'buyer', userRef),
     delivery: row.delivery || {},
     items: (Array.isArray(row.items) ? row.items : []).map((item) => ({
-      listing: item.listing && listingMap[item.listing] ? serializeListing(listingMap[item.listing]) : item.listing,
-      inventoryLot: item.inventoryLot && lotMap[item.inventoryLot] ? serializeLot(lotMap[item.inventoryLot]) : item.inventoryLot,
+      listing:
+        item.listing && listingMap[item.listing]
+          ? serializeListing(listingMap[item.listing])
+          : item.listing,
+      inventoryLot:
+        item.inventoryLot && lotMap[item.inventoryLot]
+          ? serializeLot(lotMap[item.inventoryLot])
+          : item.inventoryLot,
       materialName: item.materialName,
       materialType: item.materialType,
       qualityGrade: item.qualityGrade,
@@ -411,7 +417,8 @@ function serializeAuction(row, { variant = 'public' } = {}) {
     winningTotalPaise: row.winningTotalPaise ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    canBid: row.status === 'ACTIVE' && row.endAt != null && new Date(row.endAt).getTime() > Date.now(),
+    canBid:
+      row.status === 'ACTIVE' && row.endAt != null && new Date(row.endAt).getTime() > Date.now(),
   };
 
   if (sensitive) {
@@ -427,7 +434,14 @@ function serializeAuction(row, { variant = 'public' } = {}) {
     base.completedAt = row.completedAt ?? undefined;
     base.winner = relation(row, 'winner', userRef);
     base.order = row.order
-      ? { id: row.order.id, _id: row.order.id, orderNumber: row.order.orderNumber, status: row.order.status, paymentStatus: row.order.paymentStatus, totalPaise: row.order.totalPaise }
+      ? {
+          id: row.order.id,
+          _id: row.order.id,
+          orderNumber: row.order.orderNumber,
+          status: row.order.status,
+          paymentStatus: row.order.paymentStatus,
+          totalPaise: row.order.totalPaise,
+        }
       : undefined;
   }
 
@@ -453,7 +467,10 @@ function serializeAuction(row, { variant = 'public' } = {}) {
  * (`isOwn`), to admins, and to the seller after the auction has concluded
  * (`revealIdentities` — the seller needs the winner for logistics).
  */
-function serializeAuctionBid(row, { viewerId = null, isAdmin = false, revealIdentities = false } = {}) {
+function serializeAuctionBid(
+  row,
+  { viewerId = null, isAdmin = false, revealIdentities = false } = {}
+) {
   if (!row) return null;
   const isOwn = viewerId != null && String(row.bidderId) === String(viewerId);
   const reveal = isAdmin || isOwn || revealIdentities;
@@ -462,7 +479,7 @@ function serializeAuctionBid(row, { viewerId = null, isAdmin = false, revealIden
     _id: row.id,
     auction: row.auctionId,
     ...defined({
-      bidder: row.bidder ? userRef(row.bidder) : (reveal ? row.bidderId : undefined),
+      bidder: row.bidder ? userRef(row.bidder) : reveal ? row.bidderId : undefined,
       bidderId: reveal ? row.bidderId : undefined,
     }),
     bidPerKgPaise: row.bidPerKgPaise,
@@ -484,7 +501,9 @@ function serializeAuctionSettings(row) {
     defaultDurationMinutes: row.defaultDurationMinutes,
     minDurationMinutes: row.minDurationMinutes,
     maxDurationMinutes: row.maxDurationMinutes,
-    allowedDurationsMinutes: Array.isArray(row.allowedDurationsMinutes) ? row.allowedDurationsMinutes : [],
+    allowedDurationsMinutes: Array.isArray(row.allowedDurationsMinutes)
+      ? row.allowedDurationsMinutes
+      : [],
     minIncrementType: row.minIncrementType,
     minIncrementValue: row.minIncrementValue,
     antiSnipingEnabled: row.antiSnipingEnabled,

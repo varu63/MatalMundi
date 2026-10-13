@@ -8,7 +8,6 @@ import {
   Search,
   ShieldAlert,
   SlidersHorizontal,
-  Truck,
 } from 'lucide-react';
 import { endpoints, handleError } from '../../lib/api';
 import { paise, kg, dateTime } from '../../lib/format';
@@ -31,7 +30,13 @@ const STATUS_OPTIONS = [
 ];
 
 const OPEN_ADJUSTABLE = ['PENDING_APPROVAL', 'SCHEDULED', 'ACTIVE'];
-const CANCELLABLE = ['PENDING_APPROVAL', 'SCHEDULED', 'ACTIVE', 'AWAITING_PAYMENT', 'AWAITING_PICKUP'];
+const CANCELLABLE = [
+  'PENDING_APPROVAL',
+  'SCHEDULED',
+  'ACTIVE',
+  'AWAITING_PAYMENT',
+  'AWAITING_PICKUP',
+];
 
 export default function AdminAuctions() {
   const toast = useToast();
@@ -55,20 +60,23 @@ export default function AdminAuctions() {
 
   useEffect(loadList, [loadList]);
 
-  const openDetail = useCallback(async (id) => {
-    setDetailLoading(true);
-    try {
-      const [aRes, bRes] = await Promise.all([
-        endpoints.admin.auction(id),
-        endpoints.admin.auctionBids(id, { limit: 50 }),
-      ]);
-      setSelected({ auction: aRes.data.data.auction, bids: bRes.data.data || [] });
-    } catch (err) {
-      toast.error(handleError(err));
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [toast]);
+  const openDetail = useCallback(
+    async (id) => {
+      setDetailLoading(true);
+      try {
+        const [aRes, bRes] = await Promise.all([
+          endpoints.admin.auction(id),
+          endpoints.admin.auctionBids(id, { limit: 50 }),
+        ]);
+        setSelected({ auction: aRes.data.data.auction, bids: bRes.data.data || [] });
+      } catch (err) {
+        toast.error(handleError(err));
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [toast]
+  );
 
   const afterAction = useCallback(
     async (message) => {
@@ -76,7 +84,7 @@ export default function AdminAuctions() {
       loadList();
       if (selected?.auction?.id) await openDetail(selected.auction.id);
     },
-    [loadList, openDetail, selected, toast],
+    [loadList, openDetail, selected, toast]
   );
 
   return (
@@ -88,7 +96,8 @@ export default function AdminAuctions() {
               <Gavel className="h-4 w-4 text-brand-600" /> Auction management
             </h2>
             <p className="mt-0.5 text-xs text-ink-500">
-              Approve, adjust, settle and close live bidding. Auction orders are handled here, not in Orders.
+              Approve, adjust, settle and close live bidding. Auction orders are handled here, not
+              in Orders.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -101,7 +110,12 @@ export default function AdminAuctions() {
               className="relative"
             >
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-400" />
-              <input name="search" defaultValue={search} placeholder="Search auctions…" className="input w-56 pl-9" />
+              <input
+                name="search"
+                defaultValue={search}
+                placeholder="Search auctions…"
+                className="input w-56 pl-9"
+              />
             </form>
             <select
               className="input w-auto"
@@ -146,22 +160,32 @@ export default function AdminAuctions() {
                   </thead>
                   <tbody className="divide-y divide-ink-100">
                     {data.data.map((a) => (
-                      <tr key={a.id} className={`hover:bg-ink-50/50 ${selected?.auction?.id === a.id ? 'bg-brand-50/60' : ''}`}>
+                      <tr
+                        key={a.id}
+                        className={`hover:bg-ink-50/50 ${selected?.auction?.id === a.id ? 'bg-brand-50/60' : ''}`}
+                      >
                         <td className="px-4 py-3 font-mono text-xs">{a.auctionNumber}</td>
                         <td className="px-4 py-3">{a.seller?.name || '—'}</td>
                         <td className="px-4 py-3">
                           {a.materialType} · {kg(a.quantityKg)}
                         </td>
                         <td className="px-4 py-3">
-                          {a.currentHighestBidPerKgPaise ? `${paise(a.currentHighestBidPerKgPaise)}/kg` : '—'}
+                          {a.currentHighestBidPerKgPaise
+                            ? `${paise(a.currentHighestBidPerKgPaise)}/kg`
+                            : '—'}
                         </td>
                         <td className="px-4 py-3">{a.bidCount}</td>
                         <td className="px-4 py-3">
                           <StatusBadge status={a.status} />
                         </td>
-                        <td className="px-4 py-3 text-xs text-ink-500">{a.endAt ? dateTime(a.endAt) : '—'}</td>
+                        <td className="px-4 py-3 text-xs text-ink-500">
+                          {a.endAt ? dateTime(a.endAt) : '—'}
+                        </td>
                         <td className="px-4 py-3 text-right">
-                          <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => openDetail(a.id)}>
+                          <button
+                            className="btn-secondary px-3 py-1.5 text-xs"
+                            onClick={() => openDetail(a.id)}
+                          >
                             Manage
                           </button>
                         </td>
@@ -281,12 +305,38 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
 
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <Field label="Starting" value={`${paise(a.startingPricePerKgPaise)}/kg`} />
-          <Field label="Expected" value={a.expectedPricePerKgPaise ? `${paise(a.expectedPricePerKgPaise)}/kg` : '—'} />
-          <Field label="Min acceptable" value={a.minAcceptableBidPerKgPaise ? `${paise(a.minAcceptableBidPerKgPaise)}/kg` : '—'} />
-          <Field label="Reserve" value={a.reservePricePerKgPaise != null ? `${paise(a.reservePricePerKgPaise)}/kg` : 'None'} />
-          <Field label="Current highest" value={a.currentHighestBidPerKgPaise ? `${paise(a.currentHighestBidPerKgPaise)}/kg` : '—'} />
-          <Field label="Increment" value={a.minIncrementType === 'PERCENT' ? `${a.minIncrementValue}%` : `${paise(a.minIncrementValue)}/kg`} />
-          <Field label="Anti-sniping" value={a.antiSnipingEnabled ? `+${a.antiSnipingExtensionSeconds}s` : 'Off'} />
+          <Field
+            label="Expected"
+            value={a.expectedPricePerKgPaise ? `${paise(a.expectedPricePerKgPaise)}/kg` : '—'}
+          />
+          <Field
+            label="Min acceptable"
+            value={a.minAcceptableBidPerKgPaise ? `${paise(a.minAcceptableBidPerKgPaise)}/kg` : '—'}
+          />
+          <Field
+            label="Reserve"
+            value={
+              a.reservePricePerKgPaise != null ? `${paise(a.reservePricePerKgPaise)}/kg` : 'None'
+            }
+          />
+          <Field
+            label="Current highest"
+            value={
+              a.currentHighestBidPerKgPaise ? `${paise(a.currentHighestBidPerKgPaise)}/kg` : '—'
+            }
+          />
+          <Field
+            label="Increment"
+            value={
+              a.minIncrementType === 'PERCENT'
+                ? `${a.minIncrementValue}%`
+                : `${paise(a.minIncrementValue)}/kg`
+            }
+          />
+          <Field
+            label="Anti-sniping"
+            value={a.antiSnipingEnabled ? `+${a.antiSnipingExtensionSeconds}s` : 'Off'}
+          />
           <Field label="Duration" value={`${a.durationMinutes} min`} />
           <Field label="Extensions" value={a.extensionCount || 0} />
           <Field label="Start" value={a.startAt ? dateTime(a.startAt) : '—'} />
@@ -298,10 +348,15 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
           <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4">
             <h4 className="flex items-center gap-2 text-sm font-semibold text-brand-800">
               <BadgeCheck className="h-4 w-4" /> Settlement
-              {s.quantitySource === 'VERIFIED' && <span className="chip bg-white text-brand-700">verified qty</span>}
+              {s.quantitySource === 'VERIFIED' && (
+                <span className="chip bg-white text-brand-700">verified qty</span>
+              )}
             </h4>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-              <Field label="Winning bid" value={a.winningBidPerKgPaise ? `${paise(a.winningBidPerKgPaise)}/kg` : '—'} />
+              <Field
+                label="Winning bid"
+                value={a.winningBidPerKgPaise ? `${paise(a.winningBidPerKgPaise)}/kg` : '—'}
+              />
               <Field label="Gross" value={paise(s.grossPaise)} />
               <Field label="Platform fee" value={`- ${paise(s.platformFeePaise)}`} />
               <Field label="Pickup cost" value={`- ${paise(s.pickupCostPaise)}`} />
@@ -330,7 +385,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
 
         {/* Bids */}
         <div>
-          <h4 className="text-sm font-semibold text-ink-900">Bid history (identities visible to admins)</h4>
+          <h4 className="text-sm font-semibold text-ink-900">
+            Bid history (identities visible to admins)
+          </h4>
           {bids.length === 0 ? (
             <p className="mt-2 text-xs text-ink-500">No bids yet.</p>
           ) : (
@@ -361,7 +418,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                       type="number"
                       className="input mt-1"
                       value={approve.durationMinutes}
-                      onChange={(e) => setApprove((v) => ({ ...v, durationMinutes: e.target.value }))}
+                      onChange={(e) =>
+                        setApprove((v) => ({ ...v, durationMinutes: e.target.value }))
+                      }
                     />
                   </label>
                   <label className="text-xs text-ink-500">
@@ -374,7 +433,8 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                     />
                   </label>
                   <label className="text-xs text-ink-500">
-                    Starting price ₹/kg (optional — seller's value: {paise(a.startingPricePerKgPaise)})
+                    Starting price ₹/kg (optional — seller's value:{' '}
+                    {paise(a.startingPricePerKgPaise)})
                     <input
                       type="number"
                       className="input mt-1"
@@ -400,13 +460,15 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                       () =>
                         endpoints.admin.auctionAction(a.id, 'approve', {
                           durationMinutes: Number(approve.durationMinutes) || undefined,
-                          startAt: approve.startAt ? new Date(approve.startAt).toISOString() : undefined,
+                          startAt: approve.startAt
+                            ? new Date(approve.startAt).toISOString()
+                            : undefined,
                           startingPricePerKgPaise: approve.startingPrice
                             ? Math.round(Number(approve.startingPrice) * 100)
                             : undefined,
                           note: approve.note || undefined,
                         }),
-                      'Auction approved',
+                      'Auction approved'
                     )
                   }
                 >
@@ -424,7 +486,16 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                 <button
                   className="btn-secondary mt-2 text-red-600"
                   disabled={busy === 'reject' || reject.reason.trim().length < 3}
-                  onClick={() => run('reject', () => endpoints.admin.auctionAction(a.id, 'reject', { reason: reject.reason.trim() }), 'Auction rejected')}
+                  onClick={() =>
+                    run(
+                      'reject',
+                      () =>
+                        endpoints.admin.auctionAction(a.id, 'reject', {
+                          reason: reject.reason.trim(),
+                        }),
+                      'Auction rejected'
+                    )
+                  }
                 >
                   {busy === 'reject' ? 'Rejecting…' : 'Reject'}
                 </button>
@@ -461,7 +532,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                     type="number"
                     className="input mt-1"
                     value={adjust.minIncrementValue}
-                    onChange={(e) => setAdjust((v) => ({ ...v, minIncrementValue: e.target.value }))}
+                    onChange={(e) =>
+                      setAdjust((v) => ({ ...v, minIncrementValue: e.target.value }))
+                    }
                   />
                 </label>
                 <label className="text-xs text-ink-500">
@@ -477,7 +550,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                   <input
                     type="checkbox"
                     checked={adjust.antiSnipingEnabled}
-                    onChange={(e) => setAdjust((v) => ({ ...v, antiSnipingEnabled: e.target.checked }))}
+                    onChange={(e) =>
+                      setAdjust((v) => ({ ...v, antiSnipingEnabled: e.target.checked }))
+                    }
                   />
                   Anti-sniping extension
                 </label>
@@ -489,7 +564,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                         type="number"
                         className="input mt-1"
                         value={adjust.antiSnipingWindowSeconds}
-                        onChange={(e) => setAdjust((v) => ({ ...v, antiSnipingWindowSeconds: e.target.value }))}
+                        onChange={(e) =>
+                          setAdjust((v) => ({ ...v, antiSnipingWindowSeconds: e.target.value }))
+                        }
                       />
                     </label>
                     <label className="text-xs text-ink-500">
@@ -498,7 +575,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                         type="number"
                         className="input mt-1"
                         value={adjust.antiSnipingExtensionSeconds}
-                        onChange={(e) => setAdjust((v) => ({ ...v, antiSnipingExtensionSeconds: e.target.value }))}
+                        onChange={(e) =>
+                          setAdjust((v) => ({ ...v, antiSnipingExtensionSeconds: e.target.value }))
+                        }
                       />
                     </label>
                   </>
@@ -535,7 +614,7 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                           : undefined,
                         inspectionNotes: adjust.inspectionNotes || undefined,
                       }),
-                    'Auction updated',
+                    'Auction updated'
                   )
                 }
               >
@@ -573,7 +652,13 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
               <button
                 className="btn-primary mt-2"
                 disabled={busy === 'pay'}
-                onClick={() => run('pay', () => endpoints.admin.auctionAction(a.id, 'payment-received', payment), 'Payment recorded')}
+                onClick={() =>
+                  run(
+                    'pay',
+                    () => endpoints.admin.auctionAction(a.id, 'payment-received', payment),
+                    'Payment recorded'
+                  )
+                }
               >
                 {busy === 'pay' ? 'Recording…' : 'Mark payment received'}
               </button>
@@ -589,7 +674,9 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                     type="number"
                     className="input mt-1"
                     value={complete.verifiedQuantityKg}
-                    onChange={(e) => setComplete((v) => ({ ...v, verifiedQuantityKg: e.target.value }))}
+                    onChange={(e) =>
+                      setComplete((v) => ({ ...v, verifiedQuantityKg: e.target.value }))
+                    }
                   />
                 </label>
                 <label className="text-xs text-ink-500">
@@ -602,7 +689,8 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                 </label>
               </div>
               <p className="mt-1 text-xs text-ink-400">
-                If the verified weight differs from the listed weight, the settlement is recomputed and logged.
+                If the verified weight differs from the listed weight, the settlement is recomputed
+                and logged.
               </p>
               <button
                 className="btn-primary mt-2"
@@ -615,7 +703,7 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                         verifiedQuantityKg: Number(complete.verifiedQuantityKg) || undefined,
                         note: complete.note || undefined,
                       }),
-                    'Auction completed',
+                    'Auction completed'
                   )
                 }
               >
@@ -633,13 +721,21 @@ function AuctionPanel({ auction: a, bids, onDone, onClose }) {
                 onChange={(e) => setCancel({ reason: e.target.value })}
               />
               <p className="mt-1 text-xs text-ink-400">
-                If a winner already exists, their order is cancelled too. The runner-up is never auto-awarded.
+                If a winner already exists, their order is cancelled too. The runner-up is never
+                auto-awarded.
               </p>
               <button
                 className="btn-secondary mt-2 text-red-600"
                 disabled={busy === 'cancel' || cancel.reason.trim().length < 3}
                 onClick={() =>
-                  run('cancel', () => endpoints.admin.auctionAction(a.id, 'cancel', { reason: cancel.reason.trim() }), 'Auction cancelled')
+                  run(
+                    'cancel',
+                    () =>
+                      endpoints.admin.auctionAction(a.id, 'cancel', {
+                        reason: cancel.reason.trim(),
+                      }),
+                    'Auction cancelled'
+                  )
                 }
               >
                 {busy === 'cancel' ? 'Cancelling…' : 'Cancel auction'}
@@ -662,7 +758,12 @@ function Field({ label, value }) {
 }
 
 function ActionBox({ icon: Icon, title, tone = 'ink', children }) {
-  const border = tone === 'red' ? 'border-red-100 bg-red-50/40' : tone === 'brand' ? 'border-brand-100 bg-brand-50/40' : 'border-ink-100 bg-ink-50/40';
+  const border =
+    tone === 'red'
+      ? 'border-red-100 bg-red-50/40'
+      : tone === 'brand'
+        ? 'border-brand-100 bg-brand-50/40'
+        : 'border-ink-100 bg-ink-50/40';
   return (
     <div className={`rounded-xl border p-4 ${border}`}>
       <h4 className="flex items-center gap-2 text-sm font-semibold text-ink-900">

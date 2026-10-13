@@ -11,7 +11,6 @@ export const api = axios.create({
 // ── CSRF (double-submit cookie) ─────────────────────────────────────────────
 // The API issues a non-HttpOnly `mm.csrf` cookie (GET /auth/csrf on first use);
 // every unsafe request must echo it back in the `x-csrf-token` header.
-const CSRF_COOKIE = 'mm.csrf';
 const UNSAFE_METHODS = ['post', 'put', 'patch', 'delete'];
 
 function readCsrfCookie() {
@@ -58,7 +57,10 @@ export const endpoints = {
     list: () => api.get('/categories'),
   },
   submissions: {
-    create: (formData) => api.post('/waste-submissions', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    create: (formData) =>
+      api.post('/waste-submissions', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
     estimate: (body) => api.post('/waste-submissions/estimate', body),
     my: (params) => api.get('/waste-submissions/my', { params }),
     get: (id) => api.get(`/waste-submissions/${id}`),

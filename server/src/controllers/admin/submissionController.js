@@ -10,7 +10,10 @@ const { serializeSubmission, serializeLot, serializeListing } = require('../../u
 const { recordAudit } = require('../../services/auditService');
 const { notifySubmission } = require('../../services/notificationService');
 const { storageUploadForListing } = require('./listingHelpers');
-const { createLotFromSubmission, syncLotStatusForListing } = require('../../services/inventoryService');
+const {
+  createLotFromSubmission,
+  syncLotStatusForListing,
+} = require('../../services/inventoryService');
 const { parsePage } = require('../../utils/numbers');
 const {
   SUBMISSION_STATUS,
@@ -23,7 +26,7 @@ function assertTransition(submission, nextStatus, label) {
   const allowed = SUBMISSION_TRANSITIONS[submission.status] || [];
   if (!allowed.includes(nextStatus)) {
     throw ApiError.conflict(
-      `Cannot move submission from ${submission.status} to ${nextStatus} (${label})`,
+      `Cannot move submission from ${submission.status} to ${nextStatus} (${label})`
     );
   }
 }
@@ -89,7 +92,11 @@ const reviewSubmission = asyncHandler(async (req, res) => {
     req,
   });
 
-  return ok(res, { submission: serializeSubmission(updated) }, `Submission moved to ${updated.status}`);
+  return ok(
+    res,
+    { submission: serializeSubmission(updated) },
+    `Submission moved to ${updated.status}`
+  );
 });
 
 /** POST /admin/waste-submissions/:id/approve */
@@ -104,7 +111,10 @@ const approveSubmission = asyncHandler(async (req, res) => {
   if (req.body.proposedPricePerKg !== undefined && req.body.proposedPricePerKg !== null) {
     proposedPaise = moneyToPaise(req.body.proposedPricePerKg * submission.quantityKg);
   } else {
-    proposedPaise = Math.max(0, (submission.valuation && submission.valuation.estimatedPayoutPaise) || 0);
+    proposedPaise = Math.max(
+      0,
+      (submission.valuation && submission.valuation.estimatedPayoutPaise) || 0
+    );
   }
 
   const updated = await submissionsRepo.updateById(submission.id, {
@@ -123,7 +133,7 @@ const approveSubmission = asyncHandler(async (req, res) => {
     submission.sellerId,
     'Submission approved',
     `Your submission ${submission.submissionNumber} was approved. We will arrange pickup of ${submission.quantityKg} kg of ${submission.materialType}.`,
-    submission.id,
+    submission.id
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_APPROVE,
@@ -154,7 +164,7 @@ const rejectSubmission = asyncHandler(async (req, res) => {
     submission.sellerId,
     'Submission rejected',
     `Your submission ${submission.submissionNumber} was rejected. Reason: ${req.body.reason}`,
-    submission.id,
+    submission.id
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_REJECT,
@@ -201,7 +211,7 @@ const collectSubmission = asyncHandler(async (req, res) => {
     submission.sellerId,
     'Material collected',
     `Your ${submission.quantityKg} kg of ${submission.materialType} was received. Accepted quantity: ${acceptedKg} kg.`,
-    submission.id,
+    submission.id
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_COLLECT,
@@ -211,7 +221,11 @@ const collectSubmission = asyncHandler(async (req, res) => {
     req,
   });
 
-  return ok(res, { submission: serializeSubmission(updated), lot: serializeLot(lot) }, 'Material collected and stocked');
+  return ok(
+    res,
+    { submission: serializeSubmission(updated), lot: serializeLot(lot) },
+    'Material collected and stocked'
+  );
 });
 
 /**
@@ -228,7 +242,9 @@ const publishSubmission = asyncHandler(async (req, res) => {
   }
   const existingListing = await listingsRepo.findBySourceSubmission(submission.id);
   if (existingListing) {
-    throw ApiError.conflict('This submission already has a listing. Use listing management to edit it.');
+    throw ApiError.conflict(
+      'This submission already has a listing. Use listing management to edit it.'
+    );
   }
 
   const lot = await lotsRepo.findBySourceSubmission(submission.id);
@@ -275,20 +291,24 @@ const publishSubmission = asyncHandler(async (req, res) => {
     submission.sellerId,
     'Listed on marketplace',
     `Your material is now listed on the marketplace as "${listing.title}".`,
-    submission.id,
+    submission.id
   );
   await recordAudit({
     action: AUDIT_ACTION.SUBMISSION_PUBLISH,
     resourceType: 'WasteSubmission',
     resourceId: submission.id,
-    after: { listingId: listing.id, title: listing.title, pricePerKgPaise: listing.pricePerKgPaise },
+    after: {
+      listingId: listing.id,
+      title: listing.title,
+      pricePerKgPaise: listing.pricePerKgPaise,
+    },
     req,
   });
 
   return ok(
     res,
     { submission: serializeSubmission(fresh), listing: serializeListing(listing) },
-    'Listing published to marketplace',
+    'Listing published to marketplace'
   );
 });
 
