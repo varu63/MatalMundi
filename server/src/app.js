@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
@@ -21,14 +22,25 @@ app.set('trust proxy', env.isProd ? 1 : 0);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // ── CORS (only configured origins, always with credentials) ────────────────
+// Same-origin requests are always allowed: browsers send an Origin header even
+// for same-origin POSTs, and a single-service deployment (client served from
+// this server) must not reject its own requests.
 const originList = [...env.corsOrigins, env.clientUrl].filter(Boolean);
 app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin || originList.includes(origin)) return cb(null, true);
-      return cb(new Error('Origin not allowed by CORS'), false);
-    },
-    credentials: true,
+  cors((req, cb) => {
+    const origin = req.headers.origin;
+    let sameHost = false;
+    if (origin) {
+      try {
+        sameHost = new URL(origin).host === req.headers.host;
+      } catch {
+        sameHost = false;
+      }
+    }
+    if (!origin || sameHost || originList.includes(origin)) {
+      return cb(null, { origin: true, credentials: true });
+    }
+    return cb(new Error('Origin not allowed by CORS'));
   }),
 );
 
@@ -52,6 +64,20 @@ app.use('/api', apiLimiter);
 
 // ── Application routes ───────────────────────────────────────────────────────
 app.use('/api/v1', routes);
+
+// ── Serve the built React app when present (single-service deployment) ───────
+// Run `npm run build` first; unknown non-API paths fall back to index.html so
+// client-side routes (e.g. /marketplace, /admin) work on a hard refresh.
+const clientDist = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || req.path.startsWith('/socket.io/')) {
+      return next();
+    }
+    return res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 app.get('/', (_req, res) => {
   res.json({
