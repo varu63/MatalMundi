@@ -124,12 +124,15 @@ export default function DashboardHome() {
   );
 }
 
-function EmptyRow({ icon, text, to, action }) {
+export function EmptyRow({ icon, text, to, action, dark }) {
   return (
     <div className="flex flex-col items-center gap-3 py-10 text-center">
       {icon}
       <p className="text-sm text-ink-500">{text}</p>
-      <Link to={to} className="btn-secondary">
+      <Link
+        to={to}
+        className={dark ? 'btn bg-ink-900 text-white hover:bg-ink-800' : 'btn-secondary'}
+      >
         {action}
       </Link>
     </div>
