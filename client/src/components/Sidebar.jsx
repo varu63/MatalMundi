@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import {
   Recycle,
+  Home,
   Store,
   Gavel,
   LayoutDashboard,
@@ -22,6 +23,7 @@ import { useSidebar } from '../context/SidebarContext';
 import { useAuth } from '../context/AuthContext';
 
 const browseLinks = [
+  { to: '/', end: true, icon: Home, label: 'Home' },
   { to: '/marketplace', icon: Store, label: 'Marketplace' },
   { to: '/auctions', icon: Gavel, label: 'Auctions' },
 ];
