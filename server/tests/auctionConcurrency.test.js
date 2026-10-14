@@ -105,5 +105,7 @@ describe('Concurrent bidding swarm (row-lock serialization under load)', () => {
     const leading = bidRows.filter((b) => b.status === 'LEADING');
     expect(leading).toHaveLength(1);
     expect(leading[0].bidPerKgPaise).toBe(Math.max(...amounts));
-  });
+    // Load-style test: ~85 bcryptjs cost-12 ops dominate runtime on slow CPUs
+    // (measured ~285s of hashing on a 1.6GHz-constrained laptop; bids take ~5s).
+  }, 480_000);
 });

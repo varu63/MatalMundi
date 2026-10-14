@@ -45,11 +45,15 @@ async function recordMovement({
  * Creates an inventory lot from an accepted waste submission. The accepted
  * quantity (set by the admin at collection) becomes the sellable quantity.
  */
-async function createLotFromSubmission({ submission, actor }) {
+async function createLotFromSubmission({ submission, actor, acceptedKg }) {
+  // The collect step updates acceptedQuantityKg after the lot is created, so
+  // the admin's just-entered acceptedKg must win over the stale row.
   const accepted =
-    Number(submission.acceptedQuantityKg) > 0
-      ? Number(submission.acceptedQuantityKg)
-      : Number(submission.quantityKg);
+    Number(acceptedKg) > 0
+      ? Number(acceptedKg)
+      : Number(submission.acceptedQuantityKg) > 0
+        ? Number(submission.acceptedQuantityKg)
+        : Number(submission.quantityKg);
 
   const pickup = submission.pickup || {};
   const lot = await lotsRepo.create({

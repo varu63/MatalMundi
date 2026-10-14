@@ -152,6 +152,33 @@ describe('Full seller → admin → buyer workflow', () => {
     expect(actions).toContain('ORDER_STATUS');
   });
 
+  test('partial acceptance at collect stocks only the accepted quantity', async () => {
+    const { sCookie, aCookie } = await party();
+    const submit = await submitWaste({ cookie: sCookie, quantityKg: 500 });
+    const subId = submit.body.data.submission.id;
+
+    const approve = await request(app)
+      .post(`/api/v1/admin/waste-submissions/${subId}/approve`)
+      .set('Cookie', aCookie)
+      .send({ proposedPricePerKg: 20 });
+    expect(approve.status).toBe(200);
+
+    const collect = await request(app)
+      .post(`/api/v1/admin/waste-submissions/${subId}/collect`)
+      .set('Cookie', aCookie)
+      .send({ acceptedQuantityKg: 480 });
+    expect(collect.status).toBe(200);
+    const lotId = collect.body.data.lot.id;
+
+    const lot = await lots.findById(lotId);
+    expect(lot.acceptedQuantityKg).toBe(480);
+    expect(lot.availableQuantityKg).toBe(480);
+
+    const inMovements = (await movements.findByLot(lotId)).filter((m) => m.type === 'IN');
+    expect(inMovements).toHaveLength(1);
+    expect(inMovements[0].quantityKg).toBe(480);
+  });
+
   test('rejection notifies the seller and blocks publishing', async () => {
     const { sCookie, aCookie } = await party();
     const submit = await submitWaste({ cookie: sCookie, quantityKg: 160 });

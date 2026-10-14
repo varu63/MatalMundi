@@ -190,7 +190,7 @@ const collectSubmission = asyncHandler(async (req, res) => {
   // Create the inventory lot exactly once.
   let lot = await lotsRepo.findBySourceSubmission(submission.id);
   if (!lot) {
-    lot = await createLotFromSubmission({ submission, actor: req.user.id });
+    lot = await createLotFromSubmission({ submission, actor: req.user.id, acceptedKg });
   } else if (lot.reservedQuantityKg === 0 && lot.soldQuantityKg === 0) {
     // Refreshing a re-collect (only safe while nothing has been touched).
     lot = await lotsRepo.updateById(lot.id, {

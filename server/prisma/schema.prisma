@@ -371,6 +371,7 @@ model MarketplaceListing {
   publishedBy      User?             @relation("listingPublisher", fields: [publishedById], references: [id])
 
   @@index([active, publicationStatus, availableQuantityKg])
+  @@index([materialCategoryId, active, publicationStatus])
   @@index([pricePerKgPaise])
   @@index([createdAt])
   @@map("marketplace_listings")
@@ -467,6 +468,7 @@ model AuditLog {
   actor User? @relation("auditActor", fields: [actorId], references: [id])
 
   @@index([createdAt])
+  @@index([action, createdAt])
   @@index([resourceType, resourceId, createdAt])
   @@map("audit_logs")
 }
