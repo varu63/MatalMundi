@@ -86,6 +86,7 @@ export const endpoints = {
   admin: {
     dashboard: () => api.get('/admin/dashboard'),
     submissions: (params) => api.get('/admin/waste-submissions', { params }),
+    submission: (id) => api.get(`/admin/waste-submissions/${id}`),
     submissionAction: (id, action, body) =>
       api.post(`/admin/waste-submissions/${id}/${action}`, body, formHeaders(body)),
     review: (id, body) => api.patch(`/admin/waste-submissions/${id}/review`, body),
