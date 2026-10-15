@@ -28,6 +28,7 @@ export default function AdminOverview() {
       to: '/admin/submissions',
     },
     { label: 'Live listings', value: stats.publishedListings, to: '/admin/listings' },
+    { label: 'AI-flagged listings', value: stats.aiFlaggedListings, to: '/admin/listings' },
     { label: 'Orders awaiting decision', value: stats.pendingOrders, to: '/admin/orders' },
     { label: 'In progress orders', value: stats.acceptedOrders, to: '/admin/orders' },
     { label: 'Delivered', value: stats.completedDeliveries, to: '/admin/orders' },

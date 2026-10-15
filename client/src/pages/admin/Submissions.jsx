@@ -85,7 +85,7 @@ export default function AdminSubmissions() {
       loadList();
       if (selectedId) await openDetail(selectedId);
     },
-    [loadList, openDetail, selectedId]
+    [loadList, openDetail, selectedId, toast]
   );
 
   return (

@@ -69,6 +69,10 @@ const listingStatusSchema = z.object({
 const adminListingsQuerySchema = pagination.extend({
   status: z.enum(Object.values(LISTING_STATUS)).optional(),
   search: z.string().trim().max(120).optional(),
+  aiFlagged: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 });
 
 // ── Orders ──────────────────────────────────────────────────────────────────

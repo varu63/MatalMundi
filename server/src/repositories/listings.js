@@ -93,10 +93,11 @@ async function updateByInventoryLotId(inventoryLotId, data) {
   return result.count;
 }
 
-async function list({ publicationStatus, active, search, skip = 0, take = 12 } = {}) {
+async function list({ publicationStatus, active, search, aiFlagged, skip = 0, take = 12 } = {}) {
   const where = {};
   if (publicationStatus) where.publicationStatus = publicationStatus;
   if (active !== undefined) where.active = active;
+  if (aiFlagged !== undefined) where.imageCheckFlagged = aiFlagged;
   if (search) {
     where.OR = [
       { title: { contains: search, mode: 'insensitive' } },

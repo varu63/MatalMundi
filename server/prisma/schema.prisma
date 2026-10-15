@@ -359,6 +359,14 @@ model MarketplaceListing {
   publicationStatus ListingStatus @default(DRAFT)
   active            Boolean       @default(false)
 
+  // AI-image screening result (warn-only; never blocks the listing).
+  imageCheckStatus   String    @default("pending")
+  imageCheckFlagged  Boolean   @default(false)
+  imageCheckMaxScore Float?
+  imageCheckPerImage Json      @default("[]")
+  imageCheckError    String?
+  imageCheckedAt     DateTime?
+
   publishedById String?
   publishedAt   DateTime?
 
@@ -372,6 +380,7 @@ model MarketplaceListing {
 
   @@index([active, publicationStatus, availableQuantityKg])
   @@index([materialCategoryId, active, publicationStatus])
+  @@index([imageCheckFlagged])
   @@index([pricePerKgPaise])
   @@index([createdAt])
   @@map("marketplace_listings")

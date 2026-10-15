@@ -8,6 +8,7 @@ const { ok, paginated } = require('../../utils/apiResponse');
 const { serializeListing } = require('../../utils/serializers');
 const { recordAudit } = require('../../services/auditService');
 const { syncLotStatusForListing } = require('../../services/inventoryService');
+const { scheduleAiImageCheck } = require('../../services/aiImageCheck');
 const { parsePage } = require('../../utils/numbers');
 const { LISTING_STATUS, AUDIT_ACTION } = require('../../utils/constants');
 
@@ -35,6 +36,7 @@ const listListings = asyncHandler(async (req, res) => {
   const { rows, total } = await listingsRepo.list({
     publicationStatus: req.query.status,
     active: req.query.active === 'true' ? true : undefined,
+    aiFlagged: req.query.aiFlagged,
     search: req.query.search,
     skip,
     take: limit,
@@ -147,4 +149,29 @@ const updateListingStatus = asyncHandler(async (req, res) => {
   return ok(res, { listing: serializeListing(updated) }, `Listing is now ${target}`);
 });
 
-module.exports = { listListings, getListing, updateListing, updateListingStatus };
+/** POST /admin/listings/:id/recheck — re-run the AI-image screen from stored URLs. */
+const recheckListing = asyncHandler(async (req, res) => {
+  const listing = await listingsRepo.findById(req.params.id);
+  if (!listing) throw ApiError.notFound('Listing not found');
+  const images = Array.isArray(listing.images) ? listing.images.filter((i) => i && i.url) : [];
+  if (images.length === 0) throw ApiError.badRequest('This listing has no photos to check');
+
+  await listingsRepo.updateById(listing.id, { imageCheckStatus: 'pending', imageCheckError: null });
+  // Background, warn-only — the admin keeps working while photos re-screen.
+  scheduleAiImageCheck({ id: listing.id, images });
+
+  await recordAudit({
+    action: AUDIT_ACTION.LISTING_RECHECK,
+    resourceType: 'MarketplaceListing',
+    resourceId: listing.id,
+    req,
+  });
+
+  return ok(
+    res,
+    { listing: serializeListing({ ...listing, imageCheckStatus: 'pending' }) },
+    'Image re-check started'
+  );
+});
+
+module.exports = { listListings, getListing, updateListing, updateListingStatus, recheckListing };

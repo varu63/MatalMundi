@@ -5,8 +5,30 @@ const path = require('path');
 const crypto = require('crypto');
 const env = require('../config/env');
 const logger = require('../utils/logger');
+const ApiError = require('../utils/ApiError');
 
 const UPLOAD_ROOT = path.resolve(__dirname, '../../uploads');
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * The client-declared mimetype can't be trusted (it's just a header), so every
+ * buffer is verified against the real magic bytes before it is stored.
+ */
+function sniffImageMime(buffer) {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(PNG_MAGIC)) return 'image/png';
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
 
 let cloudinary = null;
 function getCloudinary() {
@@ -76,6 +98,12 @@ async function uploadToLocal(buffer, { folder, mimetype }) {
  * otherwise falls back to local disk so the workflow works without creds.
  */
 async function uploadImage(buffer, { folder = 'waste', mimetype = 'image/jpeg' } = {}) {
+  const sniffed = sniffImageMime(buffer);
+  if (!sniffed || sniffed !== mimetype) {
+    throw ApiError.badRequest(
+      'File content does not match an allowed image type (JPEG, PNG or WebP)'
+    );
+  }
   if (isCloudinaryEnabled()) {
     return uploadToCloudinary(buffer, { folder, mimetype });
   }

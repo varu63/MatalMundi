@@ -10,6 +10,7 @@ const { serializeSubmission, serializeLot, serializeListing } = require('../../u
 const { recordAudit } = require('../../services/auditService');
 const { notifySubmission } = require('../../services/notificationService');
 const { storageUploadForListing } = require('./listingHelpers');
+const { scheduleAiImageCheck } = require('../../services/aiImageCheck');
 const {
   createLotFromSubmission,
   syncLotStatusForListing,
@@ -280,6 +281,8 @@ const publishSubmission = asyncHandler(async (req, res) => {
   });
 
   await syncLotStatusForListing(listing);
+  // Background, warn-only AI-image screen — never blocks the response.
+  scheduleAiImageCheck(listing);
 
   const updated = await submissionsRepo.updateById(submission.id, {
     status: SUBMISSION_STATUS.PURCHASED,

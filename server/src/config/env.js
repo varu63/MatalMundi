@@ -51,6 +51,11 @@ const env = {
     password: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
   },
 
+  // Optional AI-image detection microservice (ai-detect-service/). When unset,
+  // listing image checks are skipped silently.
+  mlServiceUrl: (process.env.ML_SERVICE_URL || '').replace(/\/+$/, ''),
+  aiFlagThreshold: parseFloat(process.env.AI_FLAG_THRESHOLD || '0.8'),
+
   business: {
     platformFeePercent: parseFloat(process.env.DEFAULT_PLATFORM_FEE_PERCENT || '5'),
     basePickupCharge: parseFloat(process.env.DEFAULT_BASE_PICKUP_CHARGE || '500'),

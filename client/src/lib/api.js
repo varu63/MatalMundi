@@ -94,6 +94,7 @@ export const endpoints = {
     listing: (id) => api.get(`/admin/listings/${id}`),
     updateListing: (id, body) => api.patch(`/admin/listings/${id}`, body),
     listingStatus: (id, status) => api.patch(`/admin/listings/${id}/status`, { status }),
+    recheckListing: (id) => api.post(`/admin/listings/${id}/recheck`),
     orders: (params) => api.get('/admin/orders', { params }),
     order: (id) => api.get(`/admin/orders/${id}`),
     orderStatus: (id, body) => api.patch(`/admin/orders/${id}/status`, body),

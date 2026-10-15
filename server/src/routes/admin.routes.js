@@ -71,6 +71,7 @@ router.get(
   listingController.listListings
 );
 router.get('/listings/:id', validateObjectId('id'), listingController.getListing);
+router.post('/listings/:id/recheck', validateObjectId('id'), listingController.recheckListing);
 router.patch(
   '/listings/:id',
   validateObjectId('id'),
