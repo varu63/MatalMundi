@@ -16,10 +16,10 @@ const FRONT = (process.argv[3] || process.env.FRONTEND_URL || BASE).replace(/\/+
 const API = `${BASE}/api/v1`;
 
 const EXPECTED_CATEGORY_SLUGS = [
-  'ferrous-metals',
-  'non-ferrous-metals',
+  'ferrous',
+  'non-ferrous',
   'e-waste',
-  'batteries',
+  'battery',
   'industrial-scrap',
   'automotive-scrap',
   'construction-demolition',

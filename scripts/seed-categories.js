@@ -22,13 +22,13 @@ const { newId } = require('../server/src/utils/idGenerator');
 const CATEGORIES = [
   {
     name: 'Ferrous Metals',
-    slug: 'ferrous-metals',
+    slug: 'ferrous',
     description: 'Steel and iron scrap: MS scrap, cast iron, rebar, structural steel.',
     icon: 'wrench',
   },
   {
     name: 'Non-Ferrous Metals',
-    slug: 'non-ferrous-metals',
+    slug: 'non-ferrous',
     description: 'Aluminium, brass, copper and other metals without iron content.',
     icon: 'copper',
   },
@@ -40,7 +40,7 @@ const CATEGORIES = [
   },
   {
     name: 'Batteries',
-    slug: 'batteries',
+    slug: 'battery',
     description: 'Lead-acid and lithium batteries from vehicles, inverters and electronics.',
     icon: 'battery',
   },
@@ -82,6 +82,15 @@ const CATEGORIES = [
   },
 ];
 
+// Old slugs from an earlier revision of this seed. Renamed in place (same id,
+// so foreign keys are untouched) when the row exists under the old slug and
+// nothing occupies the new one yet.
+const PREVIOUS_SLUGS = {
+  ferrous: 'ferrous-metals',
+  'non-ferrous': 'non-ferrous-metals',
+  battery: 'batteries',
+};
+
 async function main() {
   console.log(
     'Connecting to PostgreSQL…',
@@ -93,10 +102,18 @@ async function main() {
   let updated = 0;
   for (const [i, cat] of CATEGORIES.entries()) {
     const existing = await prisma.materialCategory.findUnique({ where: { slug: cat.slug } });
-    if (existing) {
+    const target = existing || (await renamePreviousSlug(cat));
+    if (target) {
       await prisma.materialCategory.update({
-        where: { slug: cat.slug },
-        data: { name: cat.name, description: cat.description, icon: cat.icon, sortOrder: i, active: true },
+        where: { id: target.id },
+        data: {
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description,
+          icon: cat.icon,
+          sortOrder: i,
+          active: true,
+        },
       });
       updated += 1;
     } else {
@@ -109,6 +126,15 @@ async function main() {
 
   console.log(`✔ Categories: ${created} created, ${updated} ensured (${CATEGORIES.length} total)`);
   await prisma.$disconnect();
+}
+
+async function renamePreviousSlug(cat) {
+  const oldSlug = PREVIOUS_SLUGS[cat.slug];
+  if (!oldSlug) return null;
+  const oldRow = await prisma.materialCategory.findUnique({ where: { slug: oldSlug } });
+  if (!oldRow) return null;
+  console.log(`↻ Renaming slug ${oldSlug} → ${cat.slug} (id preserved)`);
+  return oldRow;
 }
 
 main().catch(async (err) => {
