@@ -47,6 +47,7 @@ export default function SubmitWaste() {
   const { user } = useAuth();
   const toast = useToast();
   const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [saleMode, setSaleMode] = useState('NORMAL');
@@ -61,11 +62,13 @@ export default function SubmitWaste() {
   const isAuction = saleMode === 'AUCTION';
 
   const loadCategories = useCallback(() => {
+    setCategoriesLoading(true);
     setCategoriesError(false);
     endpoints.categories
       .list()
       .then((r) => setCategories(r.data.data.categories || []))
-      .catch(() => setCategoriesError(true));
+      .catch(() => setCategoriesError(true))
+      .finally(() => setCategoriesLoading(false));
   }, []);
 
   useEffect(() => {
@@ -245,6 +248,9 @@ export default function SubmitWaste() {
                 required
               >
                 <option value="">Select category</option>
+                {categoriesLoading && !categories.length && (
+                  <option disabled>Loading categories…</option>
+                )}
                 {categoriesWithPricing.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.name}
@@ -253,7 +259,7 @@ export default function SubmitWaste() {
               </select>
               {categoriesError ? (
                 <p className="mt-1 text-sm text-red-600">
-                  Categories failed to load.{' '}
+                  Could not load categories.{' '}
                   <button type="button" className="underline" onClick={loadCategories}>
                     Retry
                   </button>
