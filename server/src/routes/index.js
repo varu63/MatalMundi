@@ -28,6 +28,15 @@ router.get('/health', async (_req, res) => {
   });
 });
 
+router.get('/health/db', async (_req, res) => {
+  const dbUp = await ping();
+  res.status(dbUp ? 200 : 503).json({
+    success: dbUp,
+    message: dbUp ? 'Database OK' : 'Database not reachable',
+    data: { db: dbUp ? 'connected' : 'disconnected', time: new Date().toISOString() },
+  });
+});
+
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/waste-submissions', wasteRoutes);

@@ -19,7 +19,29 @@ app.disable('x-powered-by');
 app.set('trust proxy', env.isProd ? 1 : 0);
 
 // ── Security headers ────────────────────────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// CSP: same-origin by default; connect-src must allow the API origin (and its
+// WebSocket upgrade for socket.io) plus configured frontend origins, or
+// production API calls get blocked. img-src allows Cloudinary when configured.
+const apiOrigin = env.apiPublicUrl.replace(/\/+$/, '');
+const wsOrigin = apiOrigin.replace(/^http/, 'ws');
+const connectOrigins = [...new Set([apiOrigin, wsOrigin, ...env.corsOrigins, env.clientUrl])].filter(
+  Boolean
+);
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        'default-src': ["'self'"],
+        'connect-src': ["'self'", ...connectOrigins],
+        'img-src': ["'self'", 'data:', 'blob:', 'https://*.cloudinary.com'],
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'upgrade-insecure-requests': null,
+      },
+    },
+  })
+);
 
 // ── CORS (only configured origins, always with credentials) ────────────────
 // Same-origin requests are always allowed: browsers send an Origin header even

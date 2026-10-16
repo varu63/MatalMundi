@@ -21,7 +21,18 @@ function errorHandler(err, req, res, _next) {
       error = ApiError.notFound('Record not found');
     } else if (err.code === 'P2003') {
       error = ApiError.badRequest('Related record does not exist');
+    } else if (err.code === 'P2021' || err.code === 'P2022') {
+      // Missing table / migration not applied — never start failing with 500s
+      // that leak schema internals; report a safe service-unavailable.
+      error = new ApiError(503, 'Database schema is not ready (migrations pending)', undefined, 'DB_SCHEMA');
     }
+  }
+  // Connection-level failures (DB unreachable, pooled-out, DNS…) → 503.
+  if (
+    err.name === 'PrismaClientInitializationError' ||
+    ['P1001', 'P1008', 'P1017'].includes(err.code)
+  ) {
+    error = new ApiError(503, 'Database unavailable', undefined, 'DB_UNAVAILABLE');
   }
   // Malformed ids / wrong value types reaching the database layer.
   if (err.name === 'PrismaClientValidationError') {
@@ -40,7 +51,7 @@ function errorHandler(err, req, res, _next) {
   const body = {
     success: false,
     message: statusCode >= 500 && env.isProd ? 'Internal Server Error' : error.message,
-    code: error.code || undefined,
+    code: error.code || (statusCode >= 500 ? 'INTERNAL' : undefined),
   };
   if (error.details) body.details = error.details;
 

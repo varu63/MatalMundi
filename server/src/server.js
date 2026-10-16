@@ -11,7 +11,6 @@ const logger = require('./utils/logger');
 async function start() {
   try {
     await connectDB();
-
     const server = http.createServer(app);
     initSocket(server);
 
@@ -56,3 +55,13 @@ async function start() {
 }
 
 start();
+
+// A rejected promise with no handler must not kill the process silently.
+process.on('unhandledRejection', (reason) => {
+  logger.error(`UnhandledRejection: ${reason && reason.stack ? reason.stack : String(reason)}`);
+});
+// Leave the restart policy (Render) to recover from a broken interpreter state.
+process.on('uncaughtException', (err) => {
+  logger.error(`UncaughtException: ${err.stack || err.message || String(err)}`);
+  process.exit(1);
+});
