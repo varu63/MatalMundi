@@ -12,6 +12,7 @@
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "lint": "node --check src/server.js",
     "seed:admin": "node ../scripts/create-admin.js",
+    "seed:categories": "node ../scripts/seed-categories.js",
     "postinstall": "prisma generate --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev",
