@@ -21,6 +21,7 @@
     "seed:admin": "node scripts/create-admin.js",
     "seed:categories": "node scripts/seed-categories.js",
     "seed:demo": "node scripts/seed-demo.js",
+    "smoke": "node scripts/smoke-test.js",
     "prisma:generate": "npm --prefix server run prisma:generate",
     "prisma:deploy": "npm --prefix server run prisma:deploy"
   },

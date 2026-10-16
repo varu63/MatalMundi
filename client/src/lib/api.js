@@ -42,6 +42,33 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// ── Response normalization ──────────────────────────────────────────────────
+// Attach a user-safe `friendlyMessage` for failures the server cannot explain
+// (network down, CORS/CSP block, Render free-tier cold start, opaque 5xx).
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err?.response?.status;
+    if (!err?.response) {
+      err.friendlyMessage =
+        err?.code === 'ECONNABORTED'
+          ? 'The server took too long to respond — it may be waking up. Try again in a few seconds.'
+          : 'Cannot reach the server. Check your connection, or the server may be waking up — try again.';
+    } else if (status === 401) {
+      err.friendlyMessage = 'Your session has expired. Please log in again.';
+    } else if (status === 403) {
+      err.friendlyMessage = 'You do not have permission to do that.';
+    } else if (status === 429) {
+      err.friendlyMessage = 'Too many requests — please wait a moment.';
+    } else if (status === 503) {
+      err.friendlyMessage = 'Service temporarily unavailable (the database is not ready). Try again shortly.';
+    } else if (status >= 500) {
+      err.friendlyMessage = 'Server error. Please try again later.';
+    }
+    return Promise.reject(err);
+  }
+);
+
 export const endpoints = {
   auth: {
     register: (d) => api.post('/auth/register', d),
@@ -128,5 +155,10 @@ export function handleError(err) {
   if (data?.details?.length) {
     return data.details.map((d) => d.message).join('. ');
   }
-  return data?.message || err?.message || 'Something went wrong';
+  // A 5xx message is either opaque ("Internal Server Error") or unsafe to show;
+  // prefer the client-side classification for those.
+  if (data?.code === 'INTERNAL' || (data && data.message === 'Internal Server Error')) {
+    return err.friendlyMessage || 'Server error. Please try again later.';
+  }
+  return data?.message || err?.friendlyMessage || err?.message || 'Something went wrong';
 }
