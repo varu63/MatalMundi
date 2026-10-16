@@ -9,6 +9,7 @@ import Pagination from '../components/Pagination';
 export default function Marketplace() {
   const [params, setParams] = useSearchParams({});
   const [categories, setCategories] = useState([]);
+  const [categoriesError, setCategoriesError] = useState(false);
   const [data, setData] = useState({ data: [] });
   const [loading, setLoading] = useState(true);
 
@@ -28,12 +29,17 @@ export default function Marketplace() {
     [setParams]
   );
 
-  useEffect(() => {
+  const loadCategories = useCallback(() => {
+    setCategoriesError(false);
     endpoints.categories
       .list()
       .then((r) => setCategories(r.data.data.categories || []))
-      .catch(() => {});
+      .catch(() => setCategoriesError(true));
   }, []);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   useEffect(() => {
     setLoading(true);
@@ -100,6 +106,16 @@ export default function Marketplace() {
             {c.name}
           </button>
         ))}
+        {categoriesError ? (
+          <span className="text-sm text-red-600">
+            Categories failed to load.{' '}
+            <button className="underline" onClick={loadCategories}>
+              Retry
+            </button>
+          </span>
+        ) : (
+          !categories.length && <span className="text-sm text-ink-500">No categories yet.</span>
+        )}
         <div className="ml-auto">
           <label className="mr-2 text-sm text-ink-500">Sort</label>
           <select

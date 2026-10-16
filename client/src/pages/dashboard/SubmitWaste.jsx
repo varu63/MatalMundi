@@ -47,6 +47,7 @@ export default function SubmitWaste() {
   const { user } = useAuth();
   const toast = useToast();
   const [categories, setCategories] = useState([]);
+  const [categoriesError, setCategoriesError] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [saleMode, setSaleMode] = useState('NORMAL');
   const [auction, setAuction] = useState(EMPTY_AUCTION);
@@ -59,16 +60,21 @@ export default function SubmitWaste() {
 
   const isAuction = saleMode === 'AUCTION';
 
-  useEffect(() => {
+  const loadCategories = useCallback(() => {
+    setCategoriesError(false);
     endpoints.categories
       .list()
       .then((r) => setCategories(r.data.data.categories || []))
-      .catch(() => {});
+      .catch(() => setCategoriesError(true));
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
     endpoints.auctions
       .settings()
       .then((r) => setAuctionSettings(r.data.data.settings))
       .catch(() => {});
-  }, []);
+  }, [loadCategories]);
 
   const categoriesWithPricing = useMemo(() => categories, [categories]);
 
@@ -245,6 +251,18 @@ export default function SubmitWaste() {
                   </option>
                 ))}
               </select>
+              {categoriesError ? (
+                <p className="mt-1 text-sm text-red-600">
+                  Categories failed to load.{' '}
+                  <button type="button" className="underline" onClick={loadCategories}>
+                    Retry
+                  </button>
+                </p>
+              ) : (
+                !categories.length && (
+                  <p className="mt-1 text-sm text-ink-500">No categories available yet.</p>
+                )
+              )}
             </div>
             <div>
               <label className="label">Material type</label>

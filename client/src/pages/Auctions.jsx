@@ -15,6 +15,7 @@ const STATUS_TABS = [
 export default function Auctions() {
   const [params, setParams] = useSearchParams({});
   const [categories, setCategories] = useState([]);
+  const [categoriesError, setCategoriesError] = useState(false);
   const [data, setData] = useState({ data: [] });
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
@@ -35,12 +36,17 @@ export default function Auctions() {
     [setParams]
   );
 
-  useEffect(() => {
+  const loadCategories = useCallback(() => {
+    setCategoriesError(false);
     endpoints.categories
       .list()
       .then((r) => setCategories(r.data.data.categories || []))
-      .catch(() => {});
+      .catch(() => setCategoriesError(true));
   }, []);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   useEffect(() => {
     setLoading(true);
@@ -123,6 +129,16 @@ export default function Auctions() {
             {c.name}
           </button>
         ))}
+        {categoriesError ? (
+          <span className="text-sm text-red-600">
+            Categories failed to load.{' '}
+            <button className="underline" onClick={loadCategories}>
+              Retry
+            </button>
+          </span>
+        ) : (
+          !categories.length && <span className="text-sm text-ink-500">No categories yet.</span>
+        )}
       </div>
 
       {loading ? (
