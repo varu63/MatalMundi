@@ -135,6 +135,26 @@ describe('Waste submission rules', () => {
     expect(second.status).toBe(409);
   });
 
+  test('two different pickup batches of the same material and weight are allowed', async () => {
+    const cookie = await freshSellerCookie();
+    const first = await submitWaste({ cookie, quantityKg: 140 });
+    expect(first.status).toBe(201);
+
+    const second = await submitWaste({
+      cookie,
+      quantityKg: 140,
+      pickup: {
+        address: '22 Harbour Road',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        postalCode: '400001',
+        contactName: 'Ravi Kulkarni',
+        contactPhone: '9000000001',
+      },
+    });
+    expect(second.status).toBe(201);
+  });
+
   test('unsupported/inactive categories are rejected', async () => {
     const cookie = await freshSellerCookie();
     const inactive = await createCategory('Inactive');

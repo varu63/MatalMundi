@@ -6,6 +6,18 @@
   body {
     @apply bg-ink-50 text-ink-800 antialiased;
   }
+
+  /*
+   * A grid without an explicit column definition gets an `auto` track, which is
+   * sized by the content's min-content width. A single long, unbreakable string
+   * (a truncated listing title, a mono order number) then makes the track wider
+   * than the viewport and the whole page scrolls sideways on phones.
+   * Pin single-column grids to minmax(0, 1fr); responsive `sm:`/`lg:`/`xl:`
+   * column utilities still override this because utilities win over base.
+   */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @layer components {

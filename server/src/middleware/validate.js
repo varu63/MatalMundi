@@ -13,6 +13,14 @@ const ID_PATTERN = /^[0-9a-fA-F]{24}$/;
  */
 function validate(schema, source = 'body') {
   if (!SOURCES.includes(source)) throw new Error(`Invalid validation source: ${source}`);
+  // A plain object of Zod schemas is NOT a Zod schema. Failing here (at route
+  // registration time) turns a silent per-request 500 into a boot-time error.
+  if (!schema || typeof schema.safeParse !== 'function') {
+    throw new Error(
+      `validate() expects a Zod schema for "${source}", received ${typeof schema}. ` +
+        'Wrap the shape in z.object({...}).'
+    );
+  }
 
   return function validateMiddleware(req, _res, next) {
     const result = schema.safeParse(req[source]);

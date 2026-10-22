@@ -7,6 +7,7 @@ const {
   SUBMISSION_STATUS_VALUES,
   ORDER_STATUS_VALUES,
   LISTING_STATUS,
+  ACCOUNT_STATUS,
   DEFAULT_QUALITY_MULTIPLIERS,
 } = require('../utils/constants');
 
@@ -110,6 +111,17 @@ const createPricingSchema = z.object({
 
 const updatePricingSchema = createPricingSchema.partial().omit({ materialCategory: true });
 
+// Enable/disable a pricing rule. Accepts a real boolean or the strings
+// "true"/"false" (a plain coerce.boolean() would turn "false" into true).
+const pricingStatusSchema = z.object({
+  active: z.union([z.boolean(), z.enum(['true', 'false']).transform((v) => v === 'true')]),
+});
+
+// ── Users ────────────────────────────────────────────────────────────────────
+const userStatusSchema = z.object({
+  status: z.enum(Object.values(ACCOUNT_STATUS)),
+});
+
 // ── Categories ────────────────────────────────────────────────────────────────
 const categorySchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -135,6 +147,8 @@ module.exports = {
   adminOrdersQuerySchema,
   createPricingSchema,
   updatePricingSchema,
+  pricingStatusSchema,
+  userStatusSchema,
   categorySchema,
   updateCategorySchema,
 };

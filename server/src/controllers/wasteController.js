@@ -65,10 +65,13 @@ const createSubmission = asyncHandler(async (req, res) => {
   const sellerId = req.user.id;
 
   // 4. Basic duplicate-submission guard (accidental double submit).
+  const pickup = req.body.pickup || {};
   const dupe = await submissionsRepo.findRecentDuplicate({
     sellerId,
     materialType: req.body.materialType,
     quantityKg: req.body.quantityKg,
+    pickupPhone: pickup.contactPhone || '',
+    pickupCity: pickup.city || '',
     since: new Date(Date.now() - 8000),
   });
   if (dupe) {

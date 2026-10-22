@@ -147,8 +147,8 @@ export default function AdminAuctionSettings() {
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label">Minimum auction quantity (kg)</label>
-              <input
+              <label className="label" htmlFor="auctionsettings-minimum-auction-quantity-kg">Minimum auction quantity (kg)</label>
+              <input id="auctionsettings-minimum-auction-quantity-kg"
                 type="number"
                 min={100}
                 step="1"
@@ -163,9 +163,9 @@ export default function AdminAuctionSettings() {
               </p>
             </div>
             <div>
-              <label className="label">Minimum bid increment</label>
+              <label className="label" htmlFor="auctionsettings-minimum-bid-increment">Minimum bid increment</label>
               <div className="flex gap-2">
-                <select
+                <select id="auctionsettings-minimum-bid-increment"
                   className="input w-36"
                   value={form.minIncrementType}
                   onChange={set('minIncrementType')}
@@ -209,8 +209,8 @@ export default function AdminAuctionSettings() {
           </label>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="label">Default duration (min)</label>
-              <input
+              <label className="label" htmlFor="auctionsettings-default-duration-min">Default duration (min)</label>
+              <input id="auctionsettings-default-duration-min"
                 type="number"
                 min={1}
                 className="input"
@@ -220,8 +220,8 @@ export default function AdminAuctionSettings() {
               />
             </div>
             <div>
-              <label className="label">Minimum duration (min)</label>
-              <input
+              <label className="label" htmlFor="auctionsettings-minimum-duration-min">Minimum duration (min)</label>
+              <input id="auctionsettings-minimum-duration-min"
                 type="number"
                 min={1}
                 className="input"
@@ -231,8 +231,8 @@ export default function AdminAuctionSettings() {
               />
             </div>
             <div>
-              <label className="label">Maximum duration (min)</label>
-              <input
+              <label className="label" htmlFor="auctionsettings-maximum-duration-min">Maximum duration (min)</label>
+              <input id="auctionsettings-maximum-duration-min"
                 type="number"
                 min={1}
                 className="input"
@@ -243,8 +243,8 @@ export default function AdminAuctionSettings() {
             </div>
           </div>
           <div>
-            <label className="label">Allowed durations (minutes, comma-separated)</label>
-            <input
+            <label className="label" htmlFor="auctionsettings-allowed-durations-minutes-comma-separated">Allowed durations (minutes, comma-separated)</label>
+            <input id="auctionsettings-allowed-durations-minutes-comma-separated"
               className="input"
               placeholder="10, 15, 30, 60"
               value={form.allowedDurationsText}
@@ -276,8 +276,8 @@ export default function AdminAuctionSettings() {
           {form.antiSnipingEnabled && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label">Trigger window (seconds before end)</label>
-                <input
+                <label className="label" htmlFor="auctionsettings-trigger-window-seconds-before-end">Trigger window (seconds before end)</label>
+                <input id="auctionsettings-trigger-window-seconds-before-end"
                   type="number"
                   min={5}
                   max={3600}
@@ -288,8 +288,8 @@ export default function AdminAuctionSettings() {
                 />
               </div>
               <div>
-                <label className="label">Extension (seconds added)</label>
-                <input
+                <label className="label" htmlFor="auctionsettings-extension-seconds-added">Extension (seconds added)</label>
+                <input id="auctionsettings-extension-seconds-added"
                   type="number"
                   min={5}
                   max={3600}

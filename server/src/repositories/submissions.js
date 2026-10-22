@@ -117,9 +117,22 @@ async function list({
 }
 
 /** Duplicate-submission guard (accidental double submit within seconds). */
-function findRecentDuplicate({ sellerId, materialType, quantityKg, since }) {
+function findRecentDuplicate({ sellerId, materialType, quantityKg, pickupPhone, pickupCity, since }) {
+  // A double submit repeats the whole payload, so the pickup identity belongs
+  // in the key: two genuinely different pickup batches of the same material and
+  // weight (e.g. two vans, two collection points) are not duplicates.
+  const identity = [];
+  if (pickupPhone) identity.push({ pickup: { path: ['contactPhone'], equals: pickupPhone } });
+  if (pickupCity) identity.push({ pickup: { path: ['city'], equals: pickupCity } });
+
   return prisma.wasteSubmission.findFirst({
-    where: { sellerId, materialType, quantityKg, createdAt: { gte: since } },
+    where: {
+      sellerId,
+      materialType,
+      quantityKg,
+      createdAt: { gte: since },
+      ...(identity.length ? { AND: identity } : {}),
+    },
   });
 }
 

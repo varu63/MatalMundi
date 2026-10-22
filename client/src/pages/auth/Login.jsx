@@ -8,7 +8,7 @@ export default function Login() {
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/dashboard';
+  const requested = location.state?.from?.pathname;
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -19,9 +19,11 @@ export default function Login() {
     setBusy(true);
     setError('');
     try {
-      await login(form.email, form.password);
+      const user = await login(form.email, form.password);
       toast.success('Welcome back!');
-      navigate(from, { replace: true });
+      // Admins land on the control centre; everyone else on their dashboard.
+      const destination = requested || (user?.role === 'ADMIN' ? '/admin' : '/dashboard');
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {
@@ -36,8 +38,8 @@ export default function Login() {
         <p className="mt-1 text-center text-sm text-ink-500">Access your MetalMundi account</p>
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>
-            <label className="label">Email</label>
-            <input
+            <label className="label" htmlFor="login-email">Email</label>
+            <input id="login-email"
               type="email"
               className="input"
               value={form.email}
@@ -46,8 +48,8 @@ export default function Login() {
             />
           </div>
           <div>
-            <label className="label">Password</label>
-            <input
+            <label className="label" htmlFor="login-password">Password</label>
+            <input id="login-password"
               type="password"
               className="input"
               value={form.password}

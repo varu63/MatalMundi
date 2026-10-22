@@ -160,8 +160,8 @@ export default function ListingDetail() {
           </div>
 
           <div className="card p-5">
-            <label className="label">Order quantity (kg)</label>
-            <input
+            <label className="label" htmlFor="listingdetail-order-quantity-kg">Order quantity (kg)</label>
+            <input id="listingdetail-order-quantity-kg"
               type="number"
               className="input"
               min={minQty || 0}

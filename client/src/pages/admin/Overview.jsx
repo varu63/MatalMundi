@@ -92,15 +92,15 @@ export default function AdminOverview() {
 }
 
 // Approximate market value using the platform's indicative average ₹/kg.
-function ratePallmaGreek() {
+function indicativeRatePaise() {
   return 2000;
 }
 
 function mktValue(s) {
-  return paise(s.activeInventoryKg * ratePallmaGreek());
+  return paise(s.activeInventoryKg * indicativeRatePaise());
 }
 function reservedValue(s) {
-  return paise(s.reservedKg * ratePallmaGreek());
+  return paise(s.reservedKg * indicativeRatePaise());
 }
 
 function Bar({ label, value = 0, max = 0, unit }) {

@@ -148,7 +148,7 @@ export default function Landing() {
         ))}
       </section>
 
-      <section className="mt-6 grid auto-rows-fr gap-6 lg:grid-cols-2">
+      <section className="mt-6 grid grid-cols-1 auto-rows-fr gap-6 lg:grid-cols-2">
         <section className="card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 font-semibold text-ink-900">

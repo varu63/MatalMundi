@@ -48,13 +48,13 @@ export default function Register() {
         <p className="mt-1 text-center text-sm text-ink-500">Sell scrap or buy verified material</p>
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>
-            <label className="label">Full name</label>
-            <input className="input" value={form.name} onChange={set('name')} required />
+            <label className="label" htmlFor="register-full-name">Full name</label>
+            <input id="register-full-name" className="input" value={form.name} onChange={set('name')} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Email</label>
-              <input
+              <label className="label" htmlFor="register-email">Email</label>
+              <input id="register-email"
                 type="email"
                 className="input"
                 value={form.email}
@@ -63,23 +63,23 @@ export default function Register() {
               />
             </div>
             <div>
-              <label className="label">Phone</label>
-              <input className="input" value={form.phone} onChange={set('phone')} required />
+              <label className="label" htmlFor="register-phone">Phone</label>
+              <input id="register-phone" className="input" value={form.phone} onChange={set('phone')} required />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">City</label>
-              <input className="input" value={form.city} onChange={set('city')} required />
+              <label className="label" htmlFor="register-city">City</label>
+              <input id="register-city" className="input" value={form.city} onChange={set('city')} required />
             </div>
             <div>
-              <label className="label">State</label>
-              <input className="input" value={form.state} onChange={set('state')} required />
+              <label className="label" htmlFor="register-state">State</label>
+              <input id="register-state" className="input" value={form.state} onChange={set('state')} required />
             </div>
           </div>
           <div>
-            <label className="label">Password</label>
-            <input
+            <label className="label" htmlFor="register-password">Password</label>
+            <input id="register-password"
               type="password"
               className="input"
               value={form.password}

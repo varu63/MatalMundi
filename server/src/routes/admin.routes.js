@@ -1,7 +1,6 @@
 'use strict';
 
 const { Router } = require('express');
-const { z } = require('zod');
 const { requireAdmin } = require('../middleware/auth');
 const { validate, validateObjectId } = require('../middleware/validate');
 const { listingImageUpload } = require('../middleware/upload');
@@ -106,7 +105,7 @@ router.get('/users/:id/summary', validateObjectId('id'), userController.getUserS
 router.patch(
   '/users/:id/status',
   validateObjectId('id'),
-  validate({ status: z.string().min(2) }),
+  validate(ad.userStatusSchema),
   userController.updateUserStatus
 );
 
@@ -132,7 +131,7 @@ router.patch(
 router.patch(
   '/pricing/:id/status',
   validateObjectId('id'),
-  validate({ active: z.coerce.boolean() }),
+  validate(ad.pricingStatusSchema),
   pricingController.togglePricing
 );
 

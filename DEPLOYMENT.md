@@ -56,9 +56,15 @@ npm run prisma:deploy && npm run seed:admin && npm run seed:categories && NODE_E
 
 ```
 docker compose up -d db          # PostgreSQL 16 in container `metalmundi`
+npm run prisma:deploy            # apply migrations (skips already-applied ones)
 npm run seed:admin && npm run seed:categories
 npm run dev                      # API :5000 + Vite :5173 (proxied)
 ```
+
+`prisma:deploy` is required on a **fresh** database — without it the API boots against
+missing tables and returns `503 DB_SCHEMA` (e.g. `GET /marketplace` fails on
+`marketplace_listings.imageCheckStatus`). Use `npm --prefix server run prisma:migrate`
+instead only when you intentionally add a migration.
 
 ## Test & verification commands
 
@@ -71,6 +77,11 @@ npm run smoke -- https://matalmundi.onrender.com   # production smoke checks
 `scripts/smoke-test.js` verifies: `/health`, `/health/db`, the 10 categories present,
 401 on protected routes, JSON 404 on unknown API routes, CORS preflight from the
 frontend origin, SPA HTML loads, and **the served JS bundle contains no localhost URL**.
+
+> The server suite must run through `npm test` (Jest `--runInBand`). All server tests
+> share one database (`metalmundi_test`) and each test deletes every row before it
+> starts, so parallel workers delete each other's fixtures and produce bogus
+> failures. `npx jest` without `--runInBand` is not a valid way to run this suite.
 
 ### Post-deploy checklist
 

@@ -118,8 +118,8 @@ export default function Cart() {
           <div className="card space-y-3 p-5">
             <h2 className="font-semibold text-ink-900">Delivery details</h2>
             <div>
-              <label className="label">Full name</label>
-              <input
+              <label className="label" htmlFor="cart-full-name">Full name</label>
+              <input id="cart-full-name"
                 className="input"
                 value={delivery.name}
                 onChange={(e) => setField('name', e.target.value)}
@@ -127,8 +127,8 @@ export default function Cart() {
               />
             </div>
             <div>
-              <label className="label">Phone</label>
-              <input
+              <label className="label" htmlFor="cart-phone">Phone</label>
+              <input id="cart-phone"
                 className="input"
                 value={delivery.phone}
                 onChange={(e) => setField('phone', e.target.value)}
@@ -136,8 +136,8 @@ export default function Cart() {
               />
             </div>
             <div>
-              <label className="label">Address</label>
-              <input
+              <label className="label" htmlFor="cart-address">Address</label>
+              <input id="cart-address"
                 className="input"
                 value={delivery.address}
                 onChange={(e) => setField('address', e.target.value)}
@@ -146,8 +146,8 @@ export default function Cart() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="label">City</label>
-                <input
+                <label className="label" htmlFor="cart-city">City</label>
+                <input id="cart-city"
                   className="input"
                   value={delivery.city}
                   onChange={(e) => setField('city', e.target.value)}
@@ -155,8 +155,8 @@ export default function Cart() {
                 />
               </div>
               <div>
-                <label className="label">State</label>
-                <input
+                <label className="label" htmlFor="cart-state">State</label>
+                <input id="cart-state"
                   className="input"
                   value={delivery.state}
                   onChange={(e) => setField('state', e.target.value)}
@@ -164,8 +164,8 @@ export default function Cart() {
                 />
               </div>
               <div>
-                <label className="label">PIN</label>
-                <input
+                <label className="label" htmlFor="cart-pin">PIN</label>
+                <input id="cart-pin"
                   className="input"
                   value={delivery.postalCode}
                   onChange={(e) => setField('postalCode', e.target.value)}
@@ -174,8 +174,8 @@ export default function Cart() {
               </div>
             </div>
             <div>
-              <label className="label">Notes (optional)</label>
-              <textarea
+              <label className="label" htmlFor="cart-notes-optional">Notes (optional)</label>
+              <textarea id="cart-notes-optional"
                 className="input"
                 rows={2}
                 value={notes}

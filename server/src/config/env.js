@@ -56,6 +56,18 @@ const env = {
   mlServiceUrl: (process.env.ML_SERVICE_URL || '').replace(/\/+$/, ''),
   aiFlagThreshold: parseFloat(process.env.AI_FLAG_THRESHOLD || '0.8'),
 
+  // Rate limits. The per-IP caps are deliberately generous: in India a large
+  // share of mobile traffic shares a public IP (CGNAT), and campuses/offices
+  // share one too, so a tight per-IP cap locks out unrelated users. Credential
+  // abuse is instead contained per account (see rateLimit.js).
+  rateLimits: {
+    apiMax: parseInt(process.env.RATE_LIMIT_API_MAX || '1000', 10),
+    authMax: parseInt(process.env.RATE_LIMIT_AUTH_MAX || '120', 10),
+    authAccountMax: parseInt(process.env.RATE_LIMIT_AUTH_ACCOUNT_MAX || '10', 10),
+    writeMax: parseInt(process.env.RATE_LIMIT_WRITE_MAX || '120', 10),
+    bidMax: parseInt(process.env.RATE_LIMIT_BID_MAX || '60', 10),
+  },
+
   business: {
     platformFeePercent: parseFloat(process.env.DEFAULT_PLATFORM_FEE_PERCENT || '5'),
     basePickupCharge: parseFloat(process.env.DEFAULT_BASE_PICKUP_CHARGE || '500'),

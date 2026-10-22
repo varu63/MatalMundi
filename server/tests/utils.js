@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 const {
   users,
   categories,
@@ -16,10 +18,20 @@ const MINI_PNG = Buffer.from(
   'base64'
 );
 
+// Collision-proof suffix for unique columns (users.email, categories.name/slug).
+// A plain Date.now() + Math.random() pair collides when many test helpers run
+// in the same millisecond, which made the auction concurrency suite fail with
+// "Unique constraint failed on the fields: (email)".
+let uniqueSeq = 0;
+function uniqueSuffix() {
+  uniqueSeq += 1;
+  return `${Date.now().toString(36)}-${uniqueSeq}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
 async function createUser(overrides = {}, role = 'USER') {
   return users.create({
     name: 'Test User',
-    email: `user-${Date.now()}-${Math.floor(Math.random() * 100000)}@test.dev`,
+    email: `user-${uniqueSuffix()}@test.dev`,
     phone: '9876543210',
     password: 'Password123',
     role,
@@ -30,12 +42,12 @@ async function createUser(overrides = {}, role = 'USER') {
 }
 
 async function createAdmin(overrides = {}) {
-  return createUser({ email: `admin-${Date.now()}@test.dev`, ...overrides }, 'ADMIN');
+  return createUser({ email: `admin-${uniqueSuffix()}@test.dev`, ...overrides }, 'ADMIN');
 }
 
 async function createCategory(name = 'Ferrous Scrap') {
   return categories.create({
-    name: `${name} ${Date.now()}`,
+    name: `${name} ${uniqueSuffix()}`,
     description: 'test category',
     icon: 'recycle',
     active: true,
@@ -148,7 +160,7 @@ async function pipelineToCollected(submission, admin) {
   });
 
   const lot = await lots.create({
-    lotNumber: `LOT-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    lotNumber: `LOT-${uniqueSuffix()}`,
     sourceSubmissionId: submissionId,
     sellerId: submission.sellerId || submission.seller?._id || submission.seller,
     materialCategoryId:

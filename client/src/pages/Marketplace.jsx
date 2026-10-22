@@ -117,8 +117,8 @@ export default function Marketplace() {
           !categories.length && <span className="text-sm text-ink-500">No categories yet.</span>
         )}
         <div className="ml-auto">
-          <label className="mr-2 text-sm text-ink-500">Sort</label>
-          <select
+          <label className="mr-2 text-sm text-ink-500" htmlFor="marketplace-sort">Sort</label>
+          <select id="marketplace-sort"
             className="input inline-block w-auto py-1.5"
             value={sort}
             onChange={(e) =>

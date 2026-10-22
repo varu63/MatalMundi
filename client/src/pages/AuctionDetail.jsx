@@ -358,8 +358,8 @@ export default function AuctionDetail() {
                   {user ? (
                     <form onSubmit={submitBid} className="space-y-3">
                       <div>
-                        <label className="label">Your bid (₹/kg)</label>
-                        <input
+                        <label className="label" htmlFor="auctiondetail-your-bid-kg">Your bid (₹/kg)</label>
+                        <input id="auctiondetail-your-bid-kg"
                           type="number"
                           className="input"
                           min={minNextPaise / 100}

@@ -240,8 +240,8 @@ export default function SubmitWaste() {
           <h2 className="font-semibold text-ink-900">Material details</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label">Material category</label>
-              <select
+              <label className="label" htmlFor="submit-waste-material-category">Material category</label>
+              <select id="submit-waste-material-category"
                 className="input"
                 value={form.materialCategory}
                 onChange={set('materialCategory')}
@@ -271,8 +271,8 @@ export default function SubmitWaste() {
               )}
             </div>
             <div>
-              <label className="label">Material type</label>
-              <input
+              <label className="label" htmlFor="submit-waste-material-type">Material type</label>
+              <input id="submit-waste-material-type"
                 className="input"
                 value={form.materialType}
                 onChange={set('materialType')}
@@ -281,8 +281,8 @@ export default function SubmitWaste() {
               />
             </div>
             <div>
-              <label className="label">Quantity (kg)</label>
-              <input
+              <label className="label" htmlFor="submit-waste-quantity-kg">Quantity (kg)</label>
+              <input id="submit-waste-quantity-kg"
                 type="number"
                 className="input"
                 min={minQuantity}
@@ -297,8 +297,8 @@ export default function SubmitWaste() {
               </p>
             </div>
             <div>
-              <label className="label">Condition</label>
-              <select className="input" value={form.condition} onChange={set('condition')}>
+              <label className="label" htmlFor="submit-waste-condition">Condition</label>
+              <select id="submit-waste-condition" className="input" value={form.condition} onChange={set('condition')}>
                 {CONDITIONS.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -307,8 +307,8 @@ export default function SubmitWaste() {
               </select>
             </div>
             <div>
-              <label className="label">Quality grade</label>
-              <select className="input" value={form.qualityGrade} onChange={set('qualityGrade')}>
+              <label className="label" htmlFor="submit-waste-quality-grade">Quality grade</label>
+              <select id="submit-waste-quality-grade" className="input" value={form.qualityGrade} onChange={set('qualityGrade')}>
                 {GRADES.map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -317,17 +317,17 @@ export default function SubmitWaste() {
               </select>
             </div>
             <div>
-              <label className="label">Demanded price basis</label>
-              <select className="input" value={form.demandBasis} onChange={set('demandBasis')}>
+              <label className="label" htmlFor="submit-waste-demanded-price-basis">Demanded price basis</label>
+              <select id="submit-waste-demanded-price-basis" className="input" value={form.demandBasis} onChange={set('demandBasis')}>
                 <option value="TOTAL">Total</option>
                 <option value="PER_KG">Per kg</option>
               </select>
             </div>
             <div>
-              <label className="label">
+              <label className="label" htmlFor="submit-waste-demanded-price">
                 Demanded price ({form.demandBasis === 'PER_KG' ? '₹/kg' : '₹'})
               </label>
-              <input
+              <input id="submit-waste-demanded-price"
                 type="number"
                 className="input"
                 min="0"
@@ -337,8 +337,8 @@ export default function SubmitWaste() {
             </div>
           </div>
           <div className="mt-4">
-            <label className="label">Description</label>
-            <textarea
+            <label className="label" htmlFor="submit-waste-description">Description</label>
+            <textarea id="submit-waste-description"
               className="input"
               rows={3}
               value={form.description}
@@ -359,8 +359,8 @@ export default function SubmitWaste() {
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label">Starting price (₹/kg) *</label>
-                <input
+                <label className="label" htmlFor="submit-waste-starting-price-kg">Starting price (₹/kg) *</label>
+                <input id="submit-waste-starting-price-kg"
                   type="number"
                   className="input"
                   min="0"
@@ -371,8 +371,8 @@ export default function SubmitWaste() {
                 />
               </div>
               <div>
-                <label className="label">Expected price (₹/kg)</label>
-                <input
+                <label className="label" htmlFor="submit-waste-expected-price-kg">Expected price (₹/kg)</label>
+                <input id="submit-waste-expected-price-kg"
                   type="number"
                   className="input"
                   min="0"
@@ -383,8 +383,8 @@ export default function SubmitWaste() {
                 />
               </div>
               <div>
-                <label className="label">Minimum acceptable bid (₹/kg)</label>
-                <input
+                <label className="label" htmlFor="submit-waste-minimum-acceptable-bid-kg">Minimum acceptable bid (₹/kg)</label>
+                <input id="submit-waste-minimum-acceptable-bid-kg"
                   type="number"
                   className="input"
                   min="0"
@@ -395,8 +395,8 @@ export default function SubmitWaste() {
                 />
               </div>
               <div>
-                <label className="label">Reserve price (₹/kg)</label>
-                <input
+                <label className="label" htmlFor="submit-waste-reserve-price-kg">Reserve price (₹/kg)</label>
+                <input id="submit-waste-reserve-price-kg"
                   type="number"
                   className="input"
                   min="0"
@@ -408,8 +408,8 @@ export default function SubmitWaste() {
               </div>
               {canChooseDuration ? (
                 <div>
-                  <label className="label">Auction duration</label>
-                  <select
+                  <label className="label" htmlFor="submit-waste-auction-duration-1">Auction duration</label>
+                  <select id="submit-waste-auction-duration-1"
                     className="input"
                     value={auction.durationMinutes}
                     onChange={setAuctionField('durationMinutes')}
@@ -434,8 +434,8 @@ export default function SubmitWaste() {
               )}
             </div>
             <div className="mt-4">
-              <label className="label">Inspection notes (optional)</label>
-              <textarea
+              <label className="label" htmlFor="submit-waste-inspection-notes-optional">Inspection notes (optional)</label>
+              <textarea id="submit-waste-inspection-notes-optional"
                 className="input"
                 rows={2}
                 value={auction.inspectionNotes}
@@ -450,20 +450,20 @@ export default function SubmitWaste() {
           <h2 className="font-semibold text-ink-900">Pickup location & contact</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="label">Address</label>
-              <input className="input" value={form.address} onChange={set('address')} required />
+              <label className="label" htmlFor="submit-waste-address">Address</label>
+              <input id="submit-waste-address" className="input" value={form.address} onChange={set('address')} required />
             </div>
             <div>
-              <label className="label">City</label>
-              <input className="input" value={form.city} onChange={set('city')} required />
+              <label className="label" htmlFor="submit-waste-city">City</label>
+              <input id="submit-waste-city" className="input" value={form.city} onChange={set('city')} required />
             </div>
             <div>
-              <label className="label">State</label>
-              <input className="input" value={form.state} onChange={set('state')} required />
+              <label className="label" htmlFor="submit-waste-state">State</label>
+              <input id="submit-waste-state" className="input" value={form.state} onChange={set('state')} required />
             </div>
             <div>
-              <label className="label">Postal code</label>
-              <input
+              <label className="label" htmlFor="submit-waste-postal-code">Postal code</label>
+              <input id="submit-waste-postal-code"
                 className="input"
                 value={form.postalCode}
                 onChange={set('postalCode')}
@@ -471,8 +471,8 @@ export default function SubmitWaste() {
               />
             </div>
             <div>
-              <label className="label">Contact name</label>
-              <input
+              <label className="label" htmlFor="submit-waste-contact-name">Contact name</label>
+              <input id="submit-waste-contact-name"
                 className="input"
                 value={form.contactName}
                 onChange={set('contactName')}
@@ -481,8 +481,8 @@ export default function SubmitWaste() {
               />
             </div>
             <div>
-              <label className="label">Contact phone</label>
-              <input
+              <label className="label" htmlFor="submit-waste-contact-phone">Contact phone</label>
+              <input id="submit-waste-contact-phone"
                 className="input"
                 value={form.contactPhone}
                 onChange={set('contactPhone')}
@@ -491,8 +491,8 @@ export default function SubmitWaste() {
               />
             </div>
             <div>
-              <label className="label">Comments (optional)</label>
-              <input className="input" value={form.comments} onChange={set('comments')} />
+              <label className="label" htmlFor="submit-waste-comments-optional">Comments (optional)</label>
+              <input id="submit-waste-comments-optional" className="input" value={form.comments} onChange={set('comments')} />
             </div>
           </div>
         </div>
