@@ -121,11 +121,68 @@ describe('Full seller → admin → buyer workflow', () => {
     expect(fresh.availableQuantityKg).toBe(70);
     expect(fresh.reservedQuantityKg).toBe(30);
 
-    // 10. Move the order to delivered — reservation commits to sold.
-    for (const st of ['CONFIRMED', 'PROCESSING', 'READY_FOR_DISPATCH', 'DISPATCHED', 'DELIVERED']) {
+    // 10. Admin records a passing inspection with the weighed-out quantity.
+    const inspect = await request(app)
+      .patch(`/api/v1/admin/orders/${orderId}/inspection`)
+      .set('Cookie', aCookie)
+      .send({
+        status: 'PASSED',
+        actualQuantityKg: 30,
+        materialCondition: 'LOOSE',
+        notes: 'Clean, sorted mild steel as described.',
+      });
+    expect(inspect.status).toBe(200);
+    expect(inspect.body.data.order.inspectionStatus).toBe('PASSED');
+
+    // 11. Admin sets the delivery charge; the buyer must confirm it.
+    const charge = await request(app)
+      .patch(`/api/v1/admin/orders/${orderId}/delivery-charge`)
+      .set('Cookie', aCookie)
+      .send({ deliveryChargePaise: 150000, notes: 'One truck from the Chennai yard.' });
+    expect(charge.status).toBe(200);
+    const priced = charge.body.data.order;
+    expect(priced.status).toBe('AWAITING_BUYER_CONFIRMATION');
+    expect(priced.totalPaise).toBe(
+      priced.materialSubtotalPaise + priced.taxPaise + priced.otherFeesPaise + 150000
+    );
+
+    // 12. Nobody can confirm the terms on the buyer's behalf.
+    const forced = await request(app)
+      .patch(`/api/v1/admin/orders/${orderId}/status`)
+      .set('Cookie', aCookie)
+      .send({ status: 'CONFIRMED' });
+    expect(forced.status).toBe(409);
+
+    // 13. The seller has no access to the buyer's address yet.
+    const beforeRelease = await request(app)
+      .get('/api/v1/orders/selling')
+      .set('Cookie', sCookie);
+    const hidden = beforeRelease.body.data.find((o) => o.id === orderId);
+    expect(hidden.addressReleased).toBe(false);
+    expect(hidden.delivery.address).toBeUndefined();
+    expect(hidden.delivery.phone).toBeUndefined();
+
+    // 14. Buyer confirms → order confirmed and the address is released.
+    const confirm = await request(app)
+      .patch(`/api/v1/orders/${orderId}/confirm`)
+      .set('Cookie', bCookie)
+      .send({ note: 'Charge accepted.' });
+    expect(confirm.status).toBe(200);
+    expect(confirm.body.data.order.status).toBe('CONFIRMED');
+    expect(confirm.body.data.order.addressReleased).toBe(true);
+
+    const afterRelease = await request(app)
+      .get('/api/v1/orders/selling')
+      .set('Cookie', sCookie);
+    expect(
+      afterRelease.body.data.find((o) => o.id === orderId).delivery.address
+    ).toBe('1 Nehru Street');
+
+    // 15. Seller moves the order forward — delivery commits the reservation.
+    for (const st of ['PROCESSING', 'READY_FOR_DISPATCH', 'DISPATCHED', 'DELIVERED']) {
       const r = await request(app)
-        .patch(`/api/v1/admin/orders/${orderId}/status`)
-        .set('Cookie', aCookie)
+        .patch(`/api/v1/orders/${orderId}/status`)
+        .set('Cookie', sCookie)
         .send({ status: st });
       expect(r.status).toBe(200);
     }
@@ -135,17 +192,24 @@ describe('Full seller → admin → buyer workflow', () => {
     expect(fresh.reservedQuantityKg).toBe(0);
     expect(fresh.soldQuantityKg).toBe(30);
 
+    // There is no payment provider, so nothing marks the order as paid.
+    const delivered = await request(app)
+      .get(`/api/v1/admin/orders/${orderId}`)
+      .set('Cookie', aCookie);
+    expect(delivered.body.data.order.status).toBe('DELIVERED');
+    expect(delivered.body.data.order.payment?.status).not.toBe('PAID');
+
     const movementRows = await movements.findByLot(lotId);
     expect(movementRows.length).toBeGreaterThanOrEqual(3); // IN, RESERVE, COMMIT
 
-    // 11. Buyer can track the order and has a notification.
+    // 16. Buyer can track the order and has a notification.
     const myOrders = await request(app).get('/api/v1/orders/my').set('Cookie', bCookie);
     expect(myOrders.body.data.some((o) => o.id === orderId)).toBe(true);
     const buyerNotifs = await request(app).get('/api/v1/notifications/my').set('Cookie', bCookie);
     expect(buyerNotifs.body.data.length).toBeGreaterThanOrEqual(1);
     expect(buyerNotifs.body.meta.unread).toBeGreaterThanOrEqual(1);
 
-    // 12. Audit trail exists for the approval and order actions.
+    // 17. Audit trail exists for the approval and order actions.
     const audit = await request(app).get('/api/v1/admin/audit-logs').set('Cookie', aCookie);
     const actions = audit.body.data.map((l) => l.action);
     expect(actions).toContain('SUBMISSION_APPROVE');

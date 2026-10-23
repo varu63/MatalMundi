@@ -3,6 +3,8 @@
 const request = require('supertest');
 const app = require('../src/app');
 const { createUser, createAdmin, submitWaste } = require('./utils');
+const { prisma } = require('../src/config/db');
+const { newId } = require('../src/utils/idGenerator');
 
 class CookieUser {
   constructor(cookieString) {
@@ -64,6 +66,46 @@ describe('Role-based access control', () => {
     const res = await adminAgent.get('/admin/dashboard');
     expect(res.status).toBe(200);
     expect(res.body.data.stats).toBeDefined();
+  });
+
+  // The dashboard maps over recent orders, so an empty table hid a ReferenceError
+  // in that map. Seed a real order to keep the aggregate path honest.
+  test('the admin dashboard renders recent orders, not just an empty list', async () => {
+    const adminAgent = await loginAs(await createAdmin());
+    const buyer = await createUser();
+    const seller = await createUser();
+    await prisma.order.create({
+      data: {
+        id: newId(),
+        orderNumber: `ORD-PERM-${Date.now().toString(36)}`,
+        buyerId: buyer.id,
+        sellerId: seller.id,
+        delivery: {
+          name: 'Queue Buyer',
+          phone: '9876500009',
+          address: '17 Test Yard Road',
+          city: 'Chennai',
+          state: 'Tamil Nadu',
+          postalCode: '600001',
+        },
+        items: [{ materialName: 'MS Scrap', weightKg: 10, unitPricePaise: 2500, subtotalPaise: 25000 }],
+        materialSubtotalPaise: 25000,
+        taxPercent: 18,
+        taxPaise: 4500,
+        totalPaise: 29500,
+        quoteIsProvisional: false,
+        status: 'ACCEPTED',
+        inventoryReserved: true,
+      },
+    });
+
+    const res = await adminAgent.get('/admin/dashboard');
+    expect(res.status).toBe(200);
+    expect(res.body.data.recentOrders).toHaveLength(1);
+    const [row] = res.body.data.recentOrders;
+    expect(row.orderNumber).toMatch(/^ORD-PERM-/);
+    expect(row.buyer.name).toBe(buyer.name);
+    expect(row.delivery.address).toBe('17 Test Yard Road');
   });
 
   test('users cannot view another users submission (403)', async () => {

@@ -8,6 +8,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const env = require('./config/env');
+const ApiError = require('./utils/ApiError');
 const { issueCsrfToken, verifyCsrf } = require('./middleware/csrf');
 const { apiLimiter } = require('./middleware/rateLimit');
 const { notFound, errorHandler } = require('./middleware/error');
@@ -62,7 +63,9 @@ app.use(
     if (!origin || sameHost || originList.includes(origin)) {
       return cb(null, { origin: true, credentials: true });
     }
-    return cb(new Error('Origin not allowed by CORS'));
+    // A rejected origin is a client error, not a server fault: answer 403 with
+    // the normal envelope instead of a 500 that carries a stack in dev.
+    return cb(ApiError.forbidden('Origin not allowed by CORS'));
   })
 );
 

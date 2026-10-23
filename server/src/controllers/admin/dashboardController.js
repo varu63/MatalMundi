@@ -13,7 +13,7 @@ const { serializeSubmission, serializeOrder } = require('../../utils/serializers
 const { ORDER_STATUS, ROLES, LISTING_STATUS } = require('../../utils/constants');
 
 /** GET /admin/dashboard — all figures come from live aggregation. */
-const getDashboard = asyncHandler(async (_req, res) => {
+const getDashboard = asyncHandler(async (req, res) => {
   const activeOrderStatuses = [
     ORDER_STATUS.ACCEPTED,
     ORDER_STATUS.CONFIRMED,
@@ -67,7 +67,9 @@ const getDashboard = asyncHandler(async (_req, res) => {
       totalSoldKg: inventory.totalSoldKg,
     },
     recentSubmissions: recentSubmissions.map(serializeSubmission),
-    recentOrders: recentOrders.map(serializeOrder),
+    recentOrders: recentOrders.map((order) =>
+      serializeOrder(order, { viewer: req.user, isAdmin: true })
+    ),
   });
 });
 

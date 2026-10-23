@@ -47,6 +47,14 @@ async function listPublic({ where, orderBy, skip = 0, take = 12 }) {
   return { rows, total };
 }
 
+function listPublicAll({ where, orderBy }) {
+  return prisma.marketplaceListing.findMany({
+    where,
+    orderBy,
+    include: PUBLIC_INCLUDE,
+  });
+}
+
 function findPublicById(id, visibilityWhere = {}) {
   return prisma.marketplaceListing.findFirst({
     where: { id, ...visibilityWhere },
@@ -124,6 +132,7 @@ function count(where = {}) {
 module.exports = {
   create,
   listPublic,
+  listPublicAll,
   findPublicById,
   findSellableById,
   findById,

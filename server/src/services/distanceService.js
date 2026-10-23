@@ -34,4 +34,45 @@ function estimateDistanceKm({ city = '', state = '', postalCode = '' } = {}) {
   return { distanceKm, provisional: true, source: 'hash-estimate' };
 }
 
-module.exports = { estimateDistanceKm };
+function toCoordinate(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizePoint({ latitude, longitude, lat, lng } = {}) {
+  const latValue = toCoordinate(latitude ?? lat);
+  const lngValue = toCoordinate(longitude ?? lng);
+  if (latValue === null || lngValue === null) return null;
+  if (latValue < -90 || latValue > 90 || lngValue < -180 || lngValue > 180) return null;
+  return { latitude: latValue, longitude: lngValue };
+}
+
+function haversineDistanceKm(from, to) {
+  const a = normalizePoint(from);
+  const b = normalizePoint(to);
+  if (!a || !b) return null;
+
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(b.latitude - a.latitude);
+  const dLng = toRadians(b.longitude - a.longitude);
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function radiusKm(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.min(parsed, env.business.maxRadiusKm);
+}
+
+module.exports = {
+  estimateDistanceKm,
+  haversineDistanceKm,
+  normalizePoint,
+  radiusKm,
+};

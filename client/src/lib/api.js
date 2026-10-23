@@ -79,6 +79,7 @@ export const endpoints = {
   marketplace: {
     list: (params) => api.get('/marketplace', { params }),
     get: (id) => api.get(`/marketplace/${id}`),
+    geocode: (q) => api.get('/marketplace/geocode', { params: { q } }),
   },
   categories: {
     list: () => api.get('/categories'),
@@ -95,6 +96,11 @@ export const endpoints = {
   orders: {
     create: (body) => api.post('/orders', body),
     my: (params) => api.get('/orders/my', { params }),
+    selling: (params) => api.get('/orders/selling', { params }),
+    get: (id) => api.get(`/orders/${id}`),
+    confirm: (id, body) => api.patch(`/orders/${id}/confirm`, body),
+    decline: (id, body) => api.patch(`/orders/${id}/decline`, body),
+    sellerStatus: (id, body) => api.patch(`/orders/${id}/status`, body),
   },
   auctions: {
     list: (params) => api.get('/auctions', { params }),
@@ -125,6 +131,9 @@ export const endpoints = {
     orders: (params) => api.get('/admin/orders', { params }),
     order: (id) => api.get(`/admin/orders/${id}`),
     orderStatus: (id, body) => api.patch(`/admin/orders/${id}/status`, body),
+    orderInspection: (id, body) => api.patch(`/admin/orders/${id}/inspection`, body),
+    orderDeliveryCharge: (id, body) => api.patch(`/admin/orders/${id}/delivery-charge`, body),
+    releaseOrderAddress: (id, body) => api.post(`/admin/orders/${id}/release-address`, body),
     users: (params) => api.get('/admin/users', { params }),
     user: (id) => api.get(`/admin/users/${id}`),
     userSummary: (id) => api.get(`/admin/users/${id}/summary`),

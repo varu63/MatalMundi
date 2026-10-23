@@ -5,3 +5,10 @@ node_modules
 server/uploads/*
 !server/uploads/.gitkeep
 vibe_images/
+
+# QA harness output — load fixtures carry live session tokens, so they stay local.
+scripts/load-fixtures*.json
+scripts/load-results/
+scripts/browser-evidence/
+server/tests/*.log
+server/*.log

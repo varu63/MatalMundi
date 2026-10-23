@@ -97,6 +97,24 @@ router.patch(
   validate(ad.orderStatusSchema),
   orderController.updateStatus
 );
+router.patch(
+  '/orders/:id/inspection',
+  validateObjectId('id'),
+  validate(ad.inspectionSchema),
+  orderController.updateInspection
+);
+router.patch(
+  '/orders/:id/delivery-charge',
+  validateObjectId('id'),
+  validate(ad.deliveryChargeSchema),
+  orderController.setOrderDeliveryCharge
+);
+router.post(
+  '/orders/:id/release-address',
+  validateObjectId('id'),
+  validate(ad.addressReleaseSchema),
+  orderController.releaseOrderAddress
+);
 
 // ── Users ───────────────────────────────────────────────────────────────────
 router.get('/users', userController.listUsers);

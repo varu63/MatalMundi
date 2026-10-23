@@ -11,6 +11,8 @@ const { recordAudit } = require('../../services/auditService');
 const { notifySubmission } = require('../../services/notificationService');
 const { storageUploadForListing } = require('./listingHelpers');
 const { scheduleAiImageCheck } = require('../../services/aiImageCheck');
+const { geocodeLocality } = require('../../services/geocodingService');
+const { normalizePoint } = require('../../services/distanceService');
 const {
   createLotFromSubmission,
   syncLotStatusForListing,
@@ -255,6 +257,22 @@ const publishSubmission = asyncHandler(async (req, res) => {
   }
 
   const images = await storageUploadForListing(req, submission);
+  const city = req.body.city || lot.city || submission.pickup?.city || '';
+  const state = req.body.state || lot.state || submission.pickup?.state || '';
+  const coordinates =
+    normalizePoint(req.body) ||
+    normalizePoint(lot) ||
+    (await geocodeLocality({ city, state, postalCode: submission.pickup?.postalCode }));
+
+  if (city !== lot.city || state !== lot.state || coordinates) {
+    await lotsRepo.updateById(lot.id, {
+      city,
+      state,
+      ...(coordinates
+        ? { latitude: coordinates.latitude, longitude: coordinates.longitude }
+        : {}),
+    });
+  }
 
   const listing = await listingsRepo.create({
     title: req.body.title,
@@ -273,6 +291,10 @@ const publishSubmission = asyncHandler(async (req, res) => {
     reservedQuantityKg: lot.reservedQuantityKg,
     soldQuantityKg: lot.soldQuantityKg,
     location: lot.location || {},
+    city,
+    state,
+    latitude: coordinates?.latitude ?? lot.latitude ?? null,
+    longitude: coordinates?.longitude ?? lot.longitude ?? null,
     deliveryTerms: req.body.deliveryTerms || 'Pickup from MetalMundi facility',
     publicationStatus: 'PUBLISHED',
     active: true,

@@ -8,6 +8,7 @@ const {
   ORDER_STATUS_VALUES,
   LISTING_STATUS,
   ACCOUNT_STATUS,
+  INSPECTION_STATUS,
   DEFAULT_QUALITY_MULTIPLIERS,
 } = require('../utils/constants');
 
@@ -43,6 +44,8 @@ const publishSchema = z.object({
   condition: z.enum(MATERIAL_CONDITIONS).optional(),
   city: z.string().trim().max(100).optional(),
   state: z.string().trim().max(100).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
 });
 
 const adminSubmissionsQuerySchema = pagination.extend({
@@ -60,6 +63,10 @@ const updateListingSchema = z.object({
   qualityGrade: z.enum(QUALITY_GRADES).optional(),
   condition: z.enum(MATERIAL_CONDITIONS).optional(),
   availableQuantityKg: z.coerce.number().min(0).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
+  longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
 });
 
 const listingStatusSchema = z.object({
@@ -85,6 +92,27 @@ const orderStatusSchema = z.object({
 const adminOrdersQuerySchema = pagination.extend({
   status: z.enum(ORDER_STATUS_VALUES).optional(),
   search: z.string().trim().max(120).optional(),
+});
+
+const inspectionSchema = z.object({
+  status: z.enum(Object.values(INSPECTION_STATUS)).optional(),
+  scheduledAt: z.coerce.date().optional(),
+  notes: z.string().trim().max(2000).optional().default(''),
+  failureReason: z.string().trim().max(1000).optional().default(''),
+  photos: z.array(z.string().trim().url()).max(20).optional(),
+  // Recorded when the inspection passes: what was actually weighed out and the
+  // condition observed. A changed quantity re-prices the order for re-confirmation.
+  actualQuantityKg: z.coerce.number().positive().max(10000000).optional(),
+  materialCondition: z.enum(MATERIAL_CONDITIONS).optional(),
+});
+
+const deliveryChargeSchema = z.object({
+  deliveryChargePaise: z.coerce.number().int().min(0),
+  notes: z.string().trim().max(1000).optional().default(''),
+});
+
+const addressReleaseSchema = z.object({
+  reason: z.string().trim().max(1000).optional().default(''),
 });
 
 // ── Pricing ─────────────────────────────────────────────────────────────────
@@ -145,6 +173,9 @@ module.exports = {
   adminListingsQuerySchema,
   orderStatusSchema,
   adminOrdersQuerySchema,
+  inspectionSchema,
+  deliveryChargeSchema,
+  addressReleaseSchema,
   createPricingSchema,
   updatePricingSchema,
   pricingStatusSchema,

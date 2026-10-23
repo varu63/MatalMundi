@@ -52,7 +52,22 @@ export default function MyOrders() {
               <tbody className="divide-y divide-ink-100">
                 {data.data.map((o) => (
                   <tr key={o.id} className="hover:bg-ink-50/50">
-                    <td className="px-5 py-3 font-medium text-ink-800">{o.orderNumber}</td>
+                    <td className="px-5 py-3">
+                      <Link
+                        to={`/dashboard/orders/${o.id}`}
+                        className="font-medium text-brand-700 hover:underline"
+                      >
+                        {o.orderNumber}
+                      </Link>
+                      {o.status === 'AWAITING_BUYER_CONFIRMATION' && (
+                        <Link
+                          to={`/dashboard/orders/${o.id}`}
+                          className="mt-1 block w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800"
+                        >
+                          Action needed — review terms
+                        </Link>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-ink-600">
                       {o.items
                         .map((it) => `${kg(it.weightKg)} × ${it.listing?.title || 'material'}`)

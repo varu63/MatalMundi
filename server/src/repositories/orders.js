@@ -27,7 +27,11 @@ function findById(id) {
 async function findDetail(id, { buyerFull = false } = {}) {
   const row = await prisma.order.findUnique({
     where: { id },
-    include: { buyer: buyerFull ? BUYER_SELECT_FULL : BUYER_SELECT_BASIC },
+    include: {
+      buyer: buyerFull ? BUYER_SELECT_FULL : BUYER_SELECT_BASIC,
+      seller: BUYER_SELECT_BASIC,
+      inspection: { include: { inspector: { select: { id: true, name: true } } } },
+    },
   });
   if (!row) return null;
 
@@ -50,9 +54,18 @@ async function findDetail(id, { buyerFull = false } = {}) {
   return row;
 }
 
-async function list({ buyerId, status, search, skip = 0, take = 12, populateBuyer = false } = {}) {
+async function list({
+  buyerId,
+  sellerId,
+  status,
+  search,
+  skip = 0,
+  take = 12,
+  populateBuyer = false,
+} = {}) {
   const where = {};
   if (buyerId) where.buyerId = buyerId;
+  if (sellerId) where.sellerId = sellerId;
   if (status) where.status = status;
   if (search) where.orderNumber = { contains: search, mode: 'insensitive' };
   const [rows, total] = await Promise.all([
@@ -85,6 +98,18 @@ async function updateById(id, data) {
   }
 }
 
+/**
+ * Compare-and-swap status move: the write only lands while the row is still in
+ * `fromStatus`. Two simultaneous clicks on the same workflow button therefore
+ * produce one transition and one history entry, enforced in the database
+ * rather than by disabling the button.
+ */
+async function transitionById(id, fromStatus, data) {
+  const result = await prisma.order.updateMany({ where: { id, status: fromStatus }, data });
+  if (result.count === 0) return null;
+  return prisma.order.findUnique({ where: { id } });
+}
+
 async function sumTotalsForBuyer(buyerId) {
   const agg = await prisma.order.aggregate({
     where: { buyerId },
@@ -104,6 +129,7 @@ module.exports = {
   list,
   findRecent,
   updateById,
+  transitionById,
   sumTotalsForBuyer,
   count,
 };

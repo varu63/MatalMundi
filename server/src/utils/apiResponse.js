@@ -14,7 +14,7 @@ function created(res, data = null, message = 'Created') {
   return ok(res, data, message, 201);
 }
 
-function paginated(res, items, { page, limit, total }, message = 'OK') {
+function paginated(res, items, { page, limit, total, ...extra } = {}, message = 'OK') {
   const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
   return ok(res, items, message, 200, {
     page,
@@ -23,6 +23,7 @@ function paginated(res, items, { page, limit, total }, message = 'OK') {
     totalPages,
     hasNextPage: page < totalPages,
     hasPrevPage: page > 1,
+    ...extra,
   });
 }
 

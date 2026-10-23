@@ -15,6 +15,8 @@ import DashboardHome from './pages/dashboard/DashboardHome';
 import SubmitWaste from './pages/dashboard/SubmitWaste';
 import MySubmissions from './pages/dashboard/MySubmissions';
 import MyOrders from './pages/dashboard/MyOrders';
+import MyOrderDetail from './pages/dashboard/MyOrderDetail';
+import SellerOrders from './pages/dashboard/SellerOrders';
 import MyAuctions from './pages/dashboard/MyAuctions';
 import MyBids from './pages/dashboard/MyBids';
 
@@ -58,6 +60,8 @@ export default function App() {
           <Route path="auctions" element={<MyAuctions />} />
           <Route path="bids" element={<MyBids />} />
           <Route path="orders" element={<MyOrders />} />
+          <Route path="orders/:id" element={<MyOrderDetail />} />
+          <Route path="selling" element={<SellerOrders />} />
         </Route>
 
         <Route

@@ -56,6 +56,13 @@ const env = {
   mlServiceUrl: (process.env.ML_SERVICE_URL || '').replace(/\/+$/, ''),
   aiFlagThreshold: parseFloat(process.env.AI_FLAG_THRESHOLD || '0.8'),
 
+  geocoding: {
+    enabled: process.env.GEOCODING_ENABLED === 'true' && process.env.NODE_ENV !== 'test',
+    providerUrl:
+      process.env.GEOCODING_PROVIDER_URL || 'https://nominatim.openstreetmap.org/search',
+    userAgent: process.env.GEOCODING_USER_AGENT || 'MetalMundi/1.0',
+  },
+
   // Rate limits. The per-IP caps are deliberately generous: in India a large
   // share of mobile traffic shares a public IP (CGNAT), and campuses/offices
   // share one too, so a tight per-IP cap locks out unrelated users. Credential
@@ -77,6 +84,8 @@ const env = {
     // Fallback pickup distance used when no real geocoding/distance service is
     // configured. Always surfaced to the user as a *provisional* estimate.
     defaultDistanceKm: parseFloat(process.env.DEFAULT_DISTANCE_KM || '25'),
+    defaultRadiusKm: parseFloat(process.env.DEFAULT_RADIUS_KM || '100'),
+    maxRadiusKm: parseFloat(process.env.MAX_RADIUS_KM || '1000'),
   },
 };
 
@@ -84,6 +93,11 @@ const env = {
 if (env.isProd) {
   if (env.jwtSecret.includes('dev-only') || env.cookieSecret.includes('dev-only')) {
     throw new Error('Refusing to start in production with development secrets.');
+  }
+  // DATABASE_URL has a development fallback above, so a production release with
+  // the variable missing would otherwise boot pointed at the local dev database.
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Refusing to start in production without DATABASE_URL.');
   }
 }
 

@@ -73,6 +73,10 @@ enum ListingStatus {
 enum OrderStatus {
   PENDING_ADMIN_APPROVAL
   ACCEPTED
+  INSPECTION_SCHEDULED
+  INSPECTION_IN_PROGRESS
+  DELIVERY_CHARGE_PENDING
+  AWAITING_BUYER_CONFIRMATION
   REJECTED
   CONFIRMED
   PROCESSING
@@ -80,6 +84,21 @@ enum OrderStatus {
   DISPATCHED
   DELIVERED
   CANCELLED
+}
+
+enum InspectionStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
+enum DeliveryChargeStatus {
+  NOT_SET
+  AWAITING_BUYER_CONFIRMATION
+  CONFIRMED
+  REJECTED
 }
 
 enum MovementType {
@@ -165,6 +184,10 @@ model User {
   lotsSold              InventoryLot[]    @relation("lotSeller")
   listingsPublished     MarketplaceListing[] @relation("listingPublisher")
   orders                Order[]           @relation("orderBuyer")
+  ordersSold            Order[]           @relation("orderSeller")
+  deliveryChargesSet    Order[]           @relation("orderDeliveryChargeSetter")
+  addressesReleased     Order[]           @relation("orderAddressReleaser")
+  inspectionsPerformed  Inspection[]      @relation("inspectionInspector")
   notifications         Notification[]
   auditLogs             AuditLog[]        @relation("auditActor")
   inventoryMovements    InventoryMovement[] @relation("movementActor")
@@ -311,6 +334,10 @@ model InventoryLot {
   soldQuantityKg      Float @default(0)
 
   location Json @default("{}")
+  city     String @default("")
+  state    String @default("")
+  latitude  Float?
+  longitude Float?
 
   lotStatus  LotStatus @default(ACCEPTED)
   receivedAt DateTime  @default(now())
@@ -327,6 +354,8 @@ model InventoryLot {
 
   @@index([materialCategoryId, materialType, lotStatus])
   @@index([availableQuantityKg])
+  @@index([city, state])
+  @@index([latitude, longitude])
   @@map("inventory_lots")
 }
 
@@ -354,7 +383,11 @@ model MarketplaceListing {
   soldQuantityKg      Float @default(0)
 
   location      Json   @default("{}")
-  deliveryTerms String @default("Pickup from MetalMundi facility")
+  city           String @default("")
+  state          String @default("")
+  latitude       Float?
+  longitude      Float?
+  deliveryTerms  String @default("Pickup from MetalMundi facility")
 
   publicationStatus ListingStatus @default(DRAFT)
   active            Boolean       @default(false)
@@ -383,6 +416,8 @@ model MarketplaceListing {
   @@index([imageCheckFlagged])
   @@index([pricePerKgPaise])
   @@index([createdAt])
+  @@index([city, state])
+  @@index([latitude, longitude])
   @@map("marketplace_listings")
 }
 
@@ -390,7 +425,9 @@ model Order {
   id          String @id
   orderNumber String @unique
 
-  buyerId String
+  buyerId         String
+  sellerId        String?
+  idempotencyKey  String? @unique
 
   delivery Json
   items    Json @default("[]")
@@ -403,6 +440,9 @@ model Order {
   totalPaise            Int
 
   quoteIsProvisional Boolean
+  // Incremented whenever the recorded quantity or delivery charge changes the
+  // order total after the buyer last saw it, so the UI can flag revised terms.
+  termsRevision Int @default(0)
 
   status        OrderStatus @default(PENDING_ADMIN_APPROVAL)
   statusHistory Json        @default("[]")
@@ -419,21 +459,73 @@ model Order {
   paymentReference String        @default("")
   paymentPaidAt    DateTime?
 
-  // Set only for orders created by winning an auction — their items carry no
+  // Inspection/delivery-charge workflow
+  inspectionStatus     InspectionStatus     @default(PENDING)
+  deliveryChargePaise  Int                 @default(0)
+  deliveryChargeStatus DeliveryChargeStatus @default(NOT_SET)
+  deliveryChargeSetById String?
+  deliveryChargeSetAt  DateTime?
+  deliveryChargeNotes  String             @default("")
+  buyerConfirmedAt     DateTime?
+  buyerConfirmationNote String             @default("")
+  addressReleased      Boolean             @default(false)
+  addressReleasedAt    DateTime?
+  addressReleasedById  String?
+  addressReleaseReason String             @default("")
+
+  // Set only for orders created by winning an auction �?" their items carry no
   // marketplace listing, so lot-reservation side effects are skipped for them.
   auctionId String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  buyer User @relation("orderBuyer", fields: [buyerId], references: [id])
-  auction WasteAuction? @relation(fields: [auctionId], references: [id])
+  buyer                User        @relation("orderBuyer", fields: [buyerId], references: [id])
+  seller               User?       @relation("orderSeller", fields: [sellerId], references: [id])
+  deliveryChargeSetBy  User?       @relation("orderDeliveryChargeSetter", fields: [deliveryChargeSetById], references: [id])
+  addressReleasedBy    User?       @relation("orderAddressReleaser", fields: [addressReleasedById], references: [id])
+  auction              WasteAuction? @relation(fields: [auctionId], references: [id])
 
   inventoryMovements InventoryMovement[]
+  inspection         Inspection?
 
   @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
   @@index([status, createdAt])
   @@map("orders")
+}
+
+model Inspection {
+  id      String @id
+  orderId String @unique
+
+  inspectorId String?
+  status      InspectionStatus @default(PENDING)
+
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  failedAt     DateTime?
+
+  notes        String @default("")
+  failureReason String @default("")
+  photos       Json   @default("[]")
+
+  // Recorded when the inspection passes. `actualQuantityKg` differs from the
+  // booked quantity when the weighed-out material is short or surplus; the
+  // buyer must re-confirm the order when that changes the material subtotal.
+  actualQuantityKg    Float             @default(0)
+  materialCondition   MaterialCondition @default(LOOSE)
+  quantityChangedFromKg Float           @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  inspector User? @relation("inspectionInspector", fields: [inspectorId], references: [id])
+
+  @@index([status, scheduledAt])
+  @@map("inspections")
 }
 
 model Notification {

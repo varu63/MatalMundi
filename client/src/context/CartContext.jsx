@@ -1,8 +1,13 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { endpoints, handleError } from '../lib/api';
 
 const CartContext = createContext(null);
 const STORAGE_KEY = 'metalmundi.cart';
+
+function newKey() {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return `cart-${uuid || `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`}`;
+}
 
 function loadCart() {
   try {
@@ -14,6 +19,17 @@ function loadCart() {
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(loadCart);
+  // Reused while the cart is untouched so a double-click or a retried submit
+  // resolves to the same order instead of creating a second one.
+  const submission = useRef({ fingerprint: null, key: null });
+
+  const keyFor = (list) => {
+    const fingerprint = list.map((i) => `${i.listingId}:${i.weightKg}`).join('|');
+    if (submission.current.fingerprint !== fingerprint) {
+      submission.current = { fingerprint, key: newKey() };
+    }
+    return submission.current.key;
+  };
 
   const persist = (next) => {
     setItems(next);
@@ -54,6 +70,7 @@ export function CartProvider({ children }) {
       items: items.map((i) => ({ listingId: i.listingId, weightKg: i.weightKg })),
       delivery,
       notes: notes || '',
+      idempotencyKey: keyFor(items),
     };
     try {
       const res = await endpoints.orders.create(body);

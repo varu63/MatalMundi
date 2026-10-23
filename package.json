@@ -21,6 +21,7 @@
     "seed:admin": "node scripts/create-admin.js",
     "seed:categories": "node scripts/seed-categories.js",
     "seed:demo": "node scripts/seed-demo.js",
+    "backfill:coords": "node scripts/backfill-coords.js",
     "smoke": "node scripts/smoke-test.js",
     "prisma:generate": "npm --prefix server run prisma:generate",
     "prisma:deploy": "npm --prefix server run prisma:deploy"
@@ -32,6 +33,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
+    "playwright": "^1.64.1",
     "prettier": "^3.9.10"
   }
 }

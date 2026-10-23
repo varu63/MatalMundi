@@ -205,6 +205,10 @@ function serializeLot(row) {
     reservedQuantityKg: row.reservedQuantityKg,
     soldQuantityKg: row.soldQuantityKg,
     location: row.location || {},
+    city: row.city || '',
+    state: row.state || '',
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
     lotStatus: row.lotStatus,
     receivedAt: row.receivedAt,
     createdAt: row.createdAt,
@@ -245,6 +249,10 @@ function serializeListing(row) {
     reservedQuantityKg: row.reservedQuantityKg,
     soldQuantityKg: row.soldQuantityKg,
     location: row.location || {},
+    city: row.city || '',
+    state: row.state || '',
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
     deliveryTerms: row.deliveryTerms,
     publicationStatus: row.publicationStatus,
     active: row.active,
@@ -284,7 +292,13 @@ function serializeListingPublic(row) {
     minPurchaseKg: row.minPurchaseKg,
     acceptedQuantityKg: row.acceptedQuantityKg,
     availableQuantityKg: row.availableQuantityKg,
-    location: row.location || {},
+    // Public cards show the pickup locality only. The stored pickup payload and
+    // the exact coordinates stay server-side so a listing cannot be used to
+    // scrape a precise address.
+    location: { city: row.city || '', state: row.state || '' },
+    city: row.city || '',
+    state: row.state || '',
+    distanceKm: row._distanceKm ?? undefined,
     deliveryTerms: row.deliveryTerms,
     publicationStatus: row.publicationStatus,
     createdAt: row.createdAt,
@@ -292,16 +306,53 @@ function serializeListingPublic(row) {
   };
 }
 
-function serializeOrder(row) {
+function inspectorRef(row) {
+  return {
+    id: row.id,
+    _id: row.id,
+    name: row.name,
+  };
+}
+
+function serializeInspection(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    _id: row.id,
+    status: row.status,
+    scheduledAt: row.scheduledAt ?? undefined,
+    startedAt: row.startedAt ?? undefined,
+    completedAt: row.completedAt ?? undefined,
+    failedAt: row.failedAt ?? undefined,
+    notes: row.notes,
+    failureReason: row.failureReason,
+    photos: row.photos || [],
+    actualQuantityKg: row.actualQuantityKg ?? undefined,
+    quantityChangedFromKg: row.quantityChangedFromKg ?? undefined,
+    materialCondition: row.materialCondition ?? undefined,
+    inspector: relation(row, 'inspector', inspectorRef),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function serializeOrder(row, { viewer = null, isAdmin = false } = {}) {
   if (!row) return null;
   const listingMap = row._listingMap || {};
   const lotMap = row._lotMap || {};
+  const viewerId = viewer?.id ?? viewer?._id ?? null;
+  const isBuyer = viewerId != null && String(row.buyerId) === String(viewerId);
+  const canViewBuyerDetails = isAdmin || isBuyer || row.addressReleased === true;
+  const delivery = row.delivery && typeof row.delivery === 'object' ? row.delivery : {};
+  const sellerDelivery = { city: delivery.city || '', state: delivery.state || '' };
+
   return {
     id: row.id,
     _id: row.id,
     orderNumber: row.orderNumber,
-    buyer: relation(row, 'buyer', userRef),
-    delivery: row.delivery || {},
+    buyer: canViewBuyerDetails ? relation(row, 'buyer', userRef) : undefined,
+    seller: relation(row, 'seller', userRef),
+    delivery: canViewBuyerDetails ? delivery : sellerDelivery,
     items: (Array.isArray(row.items) ? row.items : []).map((item) => ({
       listing:
         item.listing && listingMap[item.listing]
@@ -329,6 +380,8 @@ function serializeOrder(row) {
     otherFeesPaise: row.otherFeesPaise,
     totalPaise: row.totalPaise,
     quoteIsProvisional: row.quoteIsProvisional,
+    termsRevision: row.termsRevision ?? 0,
+    currency: 'INR',
     status: row.status,
     statusHistory: row.statusHistory || [],
     notes: row.notes,
@@ -336,6 +389,23 @@ function serializeOrder(row) {
     adminNotes: row.adminNotes,
     inventoryReserved: row.inventoryReserved,
     inventoryCommitted: row.inventoryCommitted,
+    inspectionStatus: row.inspectionStatus,
+    inspection: row.inspection ? serializeInspection(row.inspection) : undefined,
+    deliveryChargePaise: row.deliveryChargePaise,
+    deliveryChargeStatus: row.deliveryChargeStatus,
+    deliveryChargeSetAt: row.deliveryChargeSetAt ?? undefined,
+    deliveryChargeNotes: row.deliveryChargeNotes,
+    buyerConfirmedAt: row.buyerConfirmedAt ?? undefined,
+    buyerConfirmationNote: row.buyerConfirmationNote,
+    addressReleased: row.addressReleased,
+    addressReleasedAt: row.addressReleasedAt ?? undefined,
+    ...(isAdmin
+      ? {
+          deliveryChargeSetBy: relation(row, 'deliveryChargeSetBy', userRef),
+          addressReleasedBy: relation(row, 'addressReleasedBy', userRef),
+          addressReleaseReason: row.addressReleaseReason,
+        }
+      : {}),
     // Present only on orders created by winning an auction.
     auction: row.auctionId ?? undefined,
     payment: defined({
@@ -588,6 +658,7 @@ module.exports = {
   serializeListing,
   serializeListingPublic,
   serializeOrder,
+  serializeInspection,
   serializeNotification,
   serializeAuditLog,
   serializeMovement,

@@ -31,7 +31,27 @@ mounts the API at `/api/v1` **and serves the built React app** from `client/dist
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | yes | real prod credentials | `seed:admin` runs on every boot and re-applies these. |
 | `CLOUDINARY_*` | no | | Empty ⇒ local-disk `/uploads`, which is **ephemeral on free tier** (wiped on redeploy). |
 | `ML_SERVICE_URL` | no | | AI-image screening microservice. |
+| `GEOCODING_ENABLED` | no | `true` | Off by default, and always off when `NODE_ENV=test`. Enables Nominatim lookups for typed places and for storing pickup coordinates on lots/listings. |
+| `GEOCODING_PROVIDER_URL` | no | `https://nominatim.openstreetmap.org/search` | Only read when geocoding is enabled. |
+| `GEOCODING_USER_AGENT` | with geocoding | `MetalMundi/1.0 (contact@example.com)` | Nominatim's usage policy requires an identifying UA; requests without one are throttled or refused. |
+| `DEFAULT_RADIUS_KM`, `MAX_RADIUS_KM` | no | `100`, `1000` | Nearby-search defaults; a requested radius is capped at `MAX_RADIUS_KM`. |
 | `NODE_ENV` | **do not set as a build-time env var** | | npm would skip devDeps (vite/prisma CLI) and break the build. It is applied inline in the Start Command only. |
+
+### Nearby search without geocoding
+
+Radius search only lists material whose **stored** coordinates fall inside the circle. If
+`GEOCODING_ENABLED` is off, nothing resolves addresses to coordinates: the marketplace UI
+falls back to filtering by city and says so, and no distance is shown. Coordinates can be
+backfilled later, once the provider is configured, with an idempotent run that never
+overwrites a value already stored:
+
+```
+npm run backfill:coords            # geocode lots + listings missing coordinates
+npm run backfill:coords -- --dry-run
+```
+
+It sleeps ~1.1 s per distinct locality to respect the provider's rate policy, so the first
+run over a large catalogue is slow by design.
 
 ## Render configuration (free tier — no Pre-Deploy Command, no Shell)
 

@@ -12,20 +12,20 @@ const {
   releaseOrderItems,
   commitOrderItems,
 } = require('../../services/inventoryService');
+const {
+  statusLabel,
+  assertStatusGate,
+  setInspection,
+  setDeliveryCharge,
+  releaseAddress,
+} = require('../../services/orderWorkflowService');
 const { parsePage } = require('../../utils/numbers');
-const { ORDER_TRANSITIONS, ORDER_STATUS, AUDIT_ACTION } = require('../../utils/constants');
-
-const STATUS_LABELS = {
-  [ORDER_STATUS.PENDING_ADMIN_APPROVAL]: 'Awaiting admin approval',
-  [ORDER_STATUS.ACCEPTED]: 'Accepted',
-  [ORDER_STATUS.REJECTED]: 'Rejected',
-  [ORDER_STATUS.CONFIRMED]: 'Confirmed',
-  [ORDER_STATUS.PROCESSING]: 'Processing',
-  [ORDER_STATUS.READY_FOR_DISPATCH]: 'Ready for dispatch',
-  [ORDER_STATUS.DISPATCHED]: 'Dispatched',
-  [ORDER_STATUS.DELIVERED]: 'Delivered',
-  [ORDER_STATUS.CANCELLED]: 'Cancelled',
-};
+const {
+  ORDER_TRANSITIONS,
+  ORDER_STATUS,
+  INSPECTION_STATUS,
+  AUDIT_ACTION,
+} = require('../../utils/constants');
 
 /** GET /admin/orders */
 const listOrders = asyncHandler(async (req, res) => {
@@ -37,14 +37,18 @@ const listOrders = asyncHandler(async (req, res) => {
     take: limit,
     populateBuyer: true,
   });
-  return paginated(res, rows.map(serializeOrder), { page, limit, total });
+  return paginated(
+    res,
+    rows.map((order) => serializeOrder(order, { viewer: req.user, isAdmin: true })),
+    { page, limit, total }
+  );
 });
 
 /** GET /admin/orders/:id */
 const getOrder = asyncHandler(async (req, res) => {
   const order = await ordersRepo.findDetail(req.params.id, { buyerFull: true });
   if (!order) return ok(res, { order: null });
-  return ok(res, { order: serializeOrder(order) });
+  return ok(res, { order: serializeOrder(order, { viewer: req.user, isAdmin: true }) });
 });
 
 /**
@@ -70,6 +74,7 @@ const updateStatus = asyncHandler(async (req, res) => {
   if (!allowed.includes(next)) {
     throw ApiError.conflict(`Cannot change order from ${order.status} to ${next}`);
   }
+  assertStatusGate(order, next);
 
   const actor = req.user.id;
   const previousStatus = order.status;
@@ -104,7 +109,9 @@ const updateStatus = asyncHandler(async (req, res) => {
       inventoryCommitted = true;
       inventoryReserved = false;
     }
-    if (order.paymentStatus === 'UNPAID') data.paymentStatus = 'PAID';
+    // Payment is never marked on the seller's say-so: there is no payment
+    // provider in this application, so an order is only PAID once a real
+    // payment has been recorded against it.
   }
 
   if ((next === ORDER_STATUS.REJECTED || next === ORDER_STATUS.CANCELLED) && req.body.reason) {
@@ -122,8 +129,8 @@ const updateStatus = asyncHandler(async (req, res) => {
 
   await notifyOrder(
     order.buyerId,
-    `Order ${STATUS_LABELS[next] || next}`,
-    `Your order ${order.orderNumber} is now ${STATUS_LABELS[next] || next}.${req.body.reason ? ` ${req.body.reason}` : ''}`,
+    `Order ${statusLabel(next)}`,
+    `Your order ${order.orderNumber} is now ${statusLabel(next)}.${req.body.reason ? ` ${req.body.reason}` : ''}`,
     order.id
   );
   await recordAudit({
@@ -139,7 +146,181 @@ const updateStatus = asyncHandler(async (req, res) => {
     req,
   });
 
-  return ok(res, { order: serializeOrder(updated) }, `Order moved to ${next}`);
+  return ok(
+    res,
+    { order: serializeOrder(updated, { viewer: req.user, isAdmin: true }) },
+    `Order moved to ${next}`
+  );
 });
 
-module.exports = { listOrders, getOrder, updateStatus };
+/** PATCH /admin/orders/:id/inspection */
+const updateInspection = asyncHandler(async (req, res) => {
+  const order = await ordersRepo.findById(req.params.id);
+  if (!order) throw ApiError.notFound('Order not found');
+
+  const { order: updated, inspection } = await setInspection(order, req.user.id, req.body);
+
+  if (inspection.status === INSPECTION_STATUS.PASSED) {
+    const changed = Number(inspection.actualQuantityKg) &&
+      Number(inspection.quantityChangedFromKg) &&
+      Number(inspection.actualQuantityKg) !== Number(inspection.quantityChangedFromKg);
+    await notifyOrder(
+      order.buyerId,
+      'Inspection passed',
+      changed
+        ? `Inspection for ${order.orderNumber} passed. The weighed-out quantity is ${inspection.actualQuantityKg} kg (booked ${inspection.quantityChangedFromKg} kg), so the totals have been revised. A delivery charge will follow for your confirmation.`
+        : `Inspection for ${order.orderNumber} passed. A delivery charge will be shared for your confirmation.`,
+      order.id
+    );
+    if (order.sellerId) {
+      await notifyOrder(
+        order.sellerId,
+        'Inspection passed',
+        `Inspection for ${order.orderNumber} passed. The buyer will confirm the delivery charge next.`,
+        order.id
+      );
+    }
+  } else if (inspection.status === INSPECTION_STATUS.IN_PROGRESS) {
+    if (order.sellerId) {
+      await notifyOrder(
+        order.sellerId,
+        'Inspection in progress',
+        `The inspection for ${order.orderNumber} has started.`,
+        order.id
+      );
+    }
+  } else if (inspection.status === INSPECTION_STATUS.FAILED) {
+    await notifyOrder(
+      order.buyerId,
+      'Inspection failed',
+      `Inspection for ${order.orderNumber} failed. Reason: ${inspection.failureReason}`,
+      order.id
+    );
+    if (order.sellerId) {
+      await notifyOrder(
+        order.sellerId,
+        'Inspection failed',
+        `Inspection for ${order.orderNumber} failed. Reason: ${inspection.failureReason}`,
+        order.id
+      );
+    }
+  } else if (inspection.status === INSPECTION_STATUS.SCHEDULED) {
+    await notifyOrder(
+      order.buyerId,
+      'Inspection scheduled',
+      `Inspection for ${order.orderNumber} has been scheduled.`,
+      order.id
+    );
+  }
+
+  await recordAudit({
+    action: AUDIT_ACTION.ORDER_STATUS,
+    resourceType: 'Order',
+    resourceId: order.id,
+    before: { inspectionStatus: order.inspectionStatus, status: order.status },
+    after: {
+      inspectionStatus: inspection.status,
+      status: updated.status,
+      inspectionId: inspection.id,
+    },
+    req,
+  });
+
+  const fresh = await ordersRepo.findDetail(order.id, { buyerFull: true });
+  return ok(
+    res,
+    {
+      order: serializeOrder(fresh || updated, { viewer: req.user, isAdmin: true }),
+      inspection,
+    },
+    `Inspection ${inspection.status.toLowerCase().replace('_', ' ')}`
+  );
+});
+
+/** PATCH /admin/orders/:id/delivery-charge */
+const setOrderDeliveryCharge = asyncHandler(async (req, res) => {
+  const order = await ordersRepo.findById(req.params.id);
+  if (!order) throw ApiError.notFound('Order not found');
+
+  const updated = await setDeliveryCharge(order, req.user.id, {
+    chargePaise: req.body.deliveryChargePaise,
+    notes: req.body.notes,
+  });
+
+  await notifyOrder(
+    order.buyerId,
+    'Delivery charge ready',
+    `Delivery charge for ${order.orderNumber} is ${(updated.deliveryChargePaise / 100).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 })}. Review and confirm it in your order.`,
+    order.id
+  );
+  if (order.sellerId) {
+    await notifyOrder(
+      order.sellerId,
+      'Awaiting buyer confirmation',
+      `The delivery charge for ${order.orderNumber} has been set. Waiting for the buyer to confirm.`,
+      order.id
+    );
+  }
+
+  await recordAudit({
+    action: AUDIT_ACTION.ORDER_STATUS,
+    resourceType: 'Order',
+    resourceId: order.id,
+    before: {
+      deliveryChargePaise: order.deliveryChargePaise,
+      deliveryChargeStatus: order.deliveryChargeStatus,
+      status: order.status,
+    },
+    after: {
+      deliveryChargePaise: updated.deliveryChargePaise,
+      deliveryChargeStatus: updated.deliveryChargeStatus,
+      status: updated.status,
+    },
+    req,
+  });
+
+  return ok(
+    res,
+    { order: serializeOrder(updated, { viewer: req.user, isAdmin: true }) },
+    'Delivery charge sent to buyer for confirmation'
+  );
+});
+
+/** POST /admin/orders/:id/release-address */
+const releaseOrderAddress = asyncHandler(async (req, res) => {
+  const order = await ordersRepo.findById(req.params.id);
+  if (!order) throw ApiError.notFound('Order not found');
+
+  const updated = await releaseAddress(order, req.user.id, req.body.reason);
+  if (order.sellerId) {
+    await notifyOrder(
+      order.sellerId,
+      'Delivery address released',
+      `Delivery details for ${order.orderNumber} are now available in your seller orders.`,
+      order.id
+    );
+  }
+  await recordAudit({
+    action: AUDIT_ACTION.ORDER_STATUS,
+    resourceType: 'Order',
+    resourceId: order.id,
+    before: { addressReleased: order.addressReleased },
+    after: { addressReleased: true, reason: updated.addressReleaseReason },
+    req,
+  });
+
+  return ok(
+    res,
+    { order: serializeOrder(updated, { viewer: req.user, isAdmin: true }) },
+    'Delivery address released'
+  );
+});
+
+module.exports = {
+  listOrders,
+  getOrder,
+  updateStatus,
+  updateInspection,
+  setOrderDeliveryCharge,
+  releaseOrderAddress,
+};

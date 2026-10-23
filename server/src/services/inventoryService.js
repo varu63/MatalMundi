@@ -69,6 +69,10 @@ async function createLotFromSubmission({ submission, actor, acceptedKg }) {
     reservedQuantityKg: 0,
     soldQuantityKg: 0,
     location: { city: pickup.city || '', state: pickup.state || '' },
+    city: pickup.city || '',
+    state: pickup.state || '',
+    latitude: pickup.latitude ?? null,
+    longitude: pickup.longitude ?? null,
     lotStatus: INVENTORY_LOT_STATUS.ACCEPTED,
     receivedAt: new Date(),
   });

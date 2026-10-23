@@ -56,19 +56,19 @@ export default function ListingDetail() {
   const maxQty = listing.availableQuantityKg;
   const minQty = listing.minPurchaseKg || 0;
 
-  const onAdd = () => {
+  const addToCart = () => {
     const w = Number(qty);
     if (!w || w <= 0) {
       setError('Enter an order quantity.');
-      return;
+      return false;
     }
     if (minQty && w < minQty) {
       setError(`Minimum purchase is ${minQty} kg.`);
-      return;
+      return false;
     }
     if (w > maxQty) {
       setError(`Only ${maxQty} kg is currently available.`);
-      return;
+      return false;
     }
     add({
       listingId: listing.id,
@@ -76,8 +76,7 @@ export default function ListingDetail() {
       pricePerKgPaise: listing.pricePerKgPaise,
       weightKg: w,
     });
-    toast.success(`Added ${w} kg to your cart`);
-    navigate('/cart');
+    return true;
   };
 
   return (
@@ -125,7 +124,12 @@ export default function ListingDetail() {
             <h1 className="mt-1 text-2xl font-bold text-ink-900">{listing.title}</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-500">
               <MapPin className="h-4 w-4" />
-              {listing.location?.city}, {listing.location?.state}
+              {[listing.city, listing.state].filter(Boolean).join(', ') ||
+                [listing.location?.city, listing.location?.state].filter(Boolean).join(', ') ||
+                'Pickup locality on request'}
+              {typeof listing.distanceKm === 'number' && (
+                <span className="font-semibold text-brand-700">· {listing.distanceKm} km away</span>
+              )}
             </p>
           </div>
 
@@ -182,19 +186,38 @@ export default function ListingDetail() {
                   <span>{paise(breakdown.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-ink-600">
-                  <span>GST (18%)</span>
+                  <span>GST (estimated)</span>
                   <span>{paise(breakdown.tax)}</span>
                 </div>
                 <div className="flex justify-between border-t border-ink-100 pt-2 font-bold text-ink-900">
                   <span>Total</span>
                   <span>{paise(breakdown.total)}</span>
                 </div>
+                <p className="pt-1 text-xs text-ink-400">
+                  Indicative only — GST and the final total are recomputed from the material's
+                  pricing rules when you submit.
+                </p>
               </div>
             )}
             {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-            <button onClick={onAdd} className="btn-primary mt-4 w-full" disabled={!user}>
+            <button
+              onClick={() => {
+                if (addToCart()) navigate('/cart');
+              }}
+              className="btn-primary mt-4 w-full"
+              disabled={!user}
+            >
               <ShoppingCart className="h-4 w-4" />
-              {user ? 'Add to cart' : 'Log in to order'}
+              {user ? 'Buy now' : 'Log in to order'}
+            </button>
+            <button
+              onClick={() => {
+                if (addToCart()) toast.success(`Added ${qty} kg to your cart`);
+              }}
+              className="btn-secondary mt-2 w-full"
+              disabled={!user}
+            >
+              Add to cart
             </button>
             {!user && (
               <p className="mt-2 text-center text-xs text-ink-500">
@@ -214,8 +237,8 @@ export default function ListingDetail() {
         <div className="mt-4 flex items-start gap-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-800">
           <Package className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            This lot has been inspected by MetalMundi. A purchase request is reviewed by our team
-            before dispatch — stock is reserved only once your request is accepted.
+            This lot has been inspected by MetalMundi. Placing a request reserves the quantity
+            straight away, and our team reviews it before dispatch.
           </span>
         </div>
       </div>

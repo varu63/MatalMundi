@@ -42,6 +42,20 @@ function errorHandler(err, req, res, _next) {
   if (error.name === 'MulterError') {
     error = ApiError.badRequest(`Upload error: ${error.message}`);
   }
+  // Body parser errors report their code as `status` (not `statusCode`) and
+  // their message is raw parser text — replace both with client-safe output.
+  if (error.type === 'entity.parse.failed') {
+    error = new ApiError(400, 'Malformed JSON body', undefined, 'INVALID_JSON');
+  } else if (error.type === 'entity.too.large') {
+    error = new ApiError(413, 'Request body too large', undefined, 'PAYLOAD_TOO_LARGE');
+  } else if (!error.statusCode && typeof error.status === 'number') {
+    error = new ApiError(
+      error.status,
+      error.expose ? error.message : 'Request rejected',
+      undefined,
+      'REQUEST_REJECTED'
+    );
+  }
 
   const statusCode = error.statusCode || 500;
   if (statusCode >= 500) {

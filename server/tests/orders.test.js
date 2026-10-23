@@ -132,44 +132,37 @@ describe('Orders — pricing, stock, concurrency', () => {
     expect(order.statusHistory[0].status).toBe('PENDING_ADMIN_APPROVAL');
   });
 
-  test('concurrent admin acceptances cannot oversell stock', async () => {
+  test('concurrent buyers cannot oversell stock', async () => {
     const { buyerCookie, buyer2Cookie, adminCookie } = await party();
     const { lot, listing } = await seedListing({ availableKg: 100 });
 
-    const o1 = await request(app)
-      .post('/api/v1/orders')
-      .set('Cookie', buyerCookie)
-      .send(orderBody(listing.id, 60));
-    const o2 = await request(app)
-      .post('/api/v1/orders')
-      .set('Cookie', buyer2Cookie)
-      .send(orderBody(listing.id, 60));
-    expect(o1.status).toBe(201);
-    expect(o2.status).toBe(201);
-
-    const [r1, r2] = await Promise.all([
-      request(app)
-        .patch(`/api/v1/admin/orders/${o1.body.data.order.id}/status`)
-        .set('Cookie', adminCookie)
-        .send({ status: 'ACCEPTED' }),
-      request(app)
-        .patch(`/api/v1/admin/orders/${o2.body.data.order.id}/status`)
-        .set('Cookie', adminCookie)
-        .send({ status: 'ACCEPTED' }),
+    // Both requests read 100 kg as available, so the guard has to be the
+    // conditional stock update inside the booking transaction.
+    const [o1, o2] = await Promise.all([
+      request(app).post('/api/v1/orders').set('Cookie', buyerCookie).send(orderBody(listing.id, 60)),
+      request(app).post('/api/v1/orders').set('Cookie', buyer2Cookie).send(orderBody(listing.id, 60)),
     ]);
 
-    const statuses = [r1.status, r2.status].sort();
-    expect(statuses).toEqual([200, 409]);
+    const placed = [o1, o2].filter((r) => r.status === 201);
+    const rejected = [o1, o2].filter((r) => r.status !== 201);
+    expect(placed).toHaveLength(1);
+    expect(rejected[0].status).toBe(409);
+    expect(rejected[0].body.message).toContain('currently available');
 
     const freshLot = await lots.findById(lot.id);
     expect(freshLot.availableQuantityKg).toBe(40);
     expect(freshLot.reservedQuantityKg).toBe(60);
 
-    const losingOrderId = r1.status === 409 ? o1.body.data.order.id : o2.body.data.order.id;
-    const losing = await request(app)
-      .get(`/api/v1/admin/orders/${losingOrderId}`)
-      .set('Cookie', adminCookie);
-    expect(losing.body.data.order.status).toBe('PENDING_ADMIN_APPROVAL');
+    // Accepting the winning order must not reserve the same stock twice.
+    const accept = await request(app)
+      .patch(`/api/v1/admin/orders/${placed[0].body.data.order.id}/status`)
+      .set('Cookie', adminCookie)
+      .send({ status: 'ACCEPTED' });
+    expect(accept.status).toBe(200);
+
+    const afterAccept = await lots.findById(lot.id);
+    expect(afterAccept.availableQuantityKg).toBe(40);
+    expect(afterAccept.reservedQuantityKg).toBe(60);
   });
 
   test('rejecting an accepted order releases its reservation', async () => {
@@ -201,6 +194,31 @@ describe('Orders — pricing, stock, concurrency', () => {
     fresh = await lots.findById(lot.id);
     expect(fresh.availableQuantityKg).toBe(100);
     expect(fresh.reservedQuantityKg).toBe(0);
+  });
+
+  test('retried submissions reuse the idempotency key instead of duplicating', async () => {
+    const { buyerCookie } = await party();
+    const { lot, listing } = await seedListing({ availableKg: 100 });
+    const body = {
+      ...orderBody(listing.id, 20),
+      idempotencyKey: `retry-${Date.now()}`,
+    };
+
+    const [first, replay] = await Promise.all([
+      request(app).post('/api/v1/orders').set('Cookie', buyerCookie).send(body),
+      request(app).post('/api/v1/orders').set('Cookie', buyerCookie).send(body),
+    ]);
+
+    const ids = [first.body.data?.order?.id, replay.body.data?.order?.id].filter(Boolean);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(1);
+
+    const mine = await request(app).get('/api/v1/orders/my').set('Cookie', buyerCookie);
+    expect(mine.body.data).toHaveLength(1);
+
+    // Only one 20 kg reservation was taken from the lot.
+    const fresh = await lots.findById(lot.id);
+    expect(fresh.reservedQuantityKg).toBe(20);
   });
 
   test('invalid order transitions are rejected', async () => {

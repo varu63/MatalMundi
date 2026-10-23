@@ -10,6 +10,7 @@ import {
   ClipboardList,
   TrendingUp,
   ShoppingBag,
+  Truck,
   Tag,
   Boxes,
   Users,
@@ -35,6 +36,7 @@ const dashboardLinks = [
   { to: '/dashboard/auctions', icon: Gavel, label: 'My auctions' },
   { to: '/dashboard/bids', icon: TrendingUp, label: 'My bids' },
   { to: '/dashboard/orders', icon: ShoppingBag, label: 'My orders' },
+  { to: '/dashboard/selling', icon: Truck, label: 'Sale requests' },
 ];
 
 const adminLinks = [

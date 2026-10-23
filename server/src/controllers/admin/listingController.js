@@ -9,6 +9,7 @@ const { serializeListing } = require('../../utils/serializers');
 const { recordAudit } = require('../../services/auditService');
 const { syncLotStatusForListing } = require('../../services/inventoryService');
 const { scheduleAiImageCheck } = require('../../services/aiImageCheck');
+const { geocodeLocality } = require('../../services/geocodingService');
 const { parsePage } = require('../../utils/numbers');
 const { LISTING_STATUS, AUDIT_ACTION } = require('../../utils/constants');
 
@@ -72,6 +73,39 @@ const updateListing = asyncHandler(async (req, res) => {
   if (req.body.deliveryTerms !== undefined) data.deliveryTerms = req.body.deliveryTerms;
   if (req.body.qualityGrade !== undefined) data.qualityGrade = req.body.qualityGrade;
   if (req.body.condition !== undefined) data.condition = req.body.condition;
+  if (req.body.city !== undefined) data.city = req.body.city;
+  if (req.body.state !== undefined) data.state = req.body.state;
+  if (req.body.latitude !== undefined) data.latitude = req.body.latitude;
+  if (req.body.longitude !== undefined) data.longitude = req.body.longitude;
+
+  const locationChanged =
+    req.body.city !== undefined ||
+    req.body.state !== undefined ||
+    req.body.latitude !== undefined ||
+    req.body.longitude !== undefined;
+
+  if (locationChanged) {
+    const city = req.body.city !== undefined ? req.body.city : listing.city;
+    const state = req.body.state !== undefined ? req.body.state : listing.state;
+    const hasCoordinates = req.body.latitude !== undefined || req.body.longitude !== undefined;
+    if (!hasCoordinates && (req.body.city !== undefined || req.body.state !== undefined)) {
+      const coordinates = await geocodeLocality({ city, state });
+      if (coordinates) {
+        data.latitude = coordinates.latitude;
+        data.longitude = coordinates.longitude;
+      }
+    }
+
+    const lot = await lotsRepo.findById(listing.inventoryLotId);
+    if (lot) {
+      await lotsRepo.updateById(lot.id, {
+        city,
+        state,
+        ...(data.latitude !== undefined ? { latitude: data.latitude } : {}),
+        ...(data.longitude !== undefined ? { longitude: data.longitude } : {}),
+      });
+    }
+  }
 
   // Admin override of available quantity (still bounded by the lot's stock).
   if (req.body.availableQuantityKg !== undefined) {

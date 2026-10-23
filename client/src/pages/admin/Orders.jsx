@@ -6,11 +6,16 @@ import { useToast } from '../../context/ToastContext';
 import StatusBadge from '../../components/StatusBadge';
 import Pagination from '../../components/Pagination';
 import Spinner from '../../components/Spinner';
+import OrderWorkflowPanel from './OrderWorkflowPanel';
 
 const STATUS_OPTIONS = [
   { key: '', label: 'All statuses' },
   { key: 'PENDING_ADMIN_APPROVAL', label: 'Awaiting approval' },
   { key: 'ACCEPTED', label: 'Accepted' },
+  { key: 'INSPECTION_SCHEDULED', label: 'Inspection scheduled' },
+  { key: 'INSPECTION_IN_PROGRESS', label: 'Inspection in progress' },
+  { key: 'DELIVERY_CHARGE_PENDING', label: 'Delivery charge pending' },
+  { key: 'AWAITING_BUYER_CONFIRMATION', label: 'Awaiting buyer confirmation' },
   { key: 'CONFIRMED', label: 'Confirmed' },
   { key: 'PROCESSING', label: 'Processing' },
   { key: 'READY_FOR_DISPATCH', label: 'Ready for dispatch' },
@@ -21,9 +26,15 @@ const STATUS_OPTIONS = [
 ];
 
 // Mirrors ORDER_TRANSITIONS on the server — only these moves are accepted.
+// The server additionally gates CONFIRMED and dispatch statuses on the
+// inspection/charge/buyer-confirmation workflow (see OrderWorkflowPanel).
 const TRANSITIONS = {
   PENDING_ADMIN_APPROVAL: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
   ACCEPTED: ['CONFIRMED', 'REJECTED', 'CANCELLED'],
+  INSPECTION_SCHEDULED: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
+  INSPECTION_IN_PROGRESS: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
+  DELIVERY_CHARGE_PENDING: ['AWAITING_BUYER_CONFIRMATION', 'REJECTED', 'CANCELLED'],
+  AWAITING_BUYER_CONFIRMATION: ['REJECTED', 'CANCELLED'],
   CONFIRMED: ['PROCESSING', 'CANCELLED'],
   PROCESSING: ['READY_FOR_DISPATCH', 'CANCELLED'],
   READY_FOR_DISPATCH: ['DISPATCHED', 'CANCELLED'],
@@ -86,6 +97,12 @@ export default function AdminOrders() {
     [selectedId, toast]
   );
 
+  const refreshDetail = useCallback(async () => {
+    if (!selectedId) return;
+    const res = await endpoints.admin.order(selectedId);
+    setSelected(res.data.data.order);
+  }, [selectedId]);
+
   const move = useCallback(
     async (nextStatus) => {
       if (!selected) return;
@@ -124,7 +141,8 @@ export default function AdminOrders() {
               <ShoppingBag className="h-4 w-4 text-brand-600" /> Orders
             </h2>
             <p className="mt-0.5 text-xs text-ink-500">
-              Approve or decline purchase requests. Accepting an order reserves stock from every lot.
+              Approve or decline purchase requests. Stock is reserved as soon as a request is
+              placed, so accepting only confirms availability.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -240,7 +258,7 @@ export default function AdminOrders() {
                   {selected.delivery?.phone ? ` · ${selected.delivery.phone}` : ''}
                 </p>
                 <p className="text-ink-600">
-                  {selected.delivery?.line1}
+                  {selected.delivery?.address}
                   {selected.delivery?.city ? `, ${selected.delivery.city}` : ''}
                   {selected.delivery?.state ? `, ${selected.delivery.state}` : ''}
                   {selected.delivery?.postalCode ? ` - ${selected.delivery.postalCode}` : ''}
@@ -266,6 +284,15 @@ export default function AdminOrders() {
                   <span className="font-bold text-ink-900">{paise(selected.totalPaise)}</span>
                 </div>
               </div>
+
+              {selected.termsRevision > 0 && (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                  Terms revised {selected.termsRevision}× after booking — the buyer must confirm the
+                  updated total before dispatch.
+                </p>
+              )}
+
+              <OrderWorkflowPanel order={selected} onUpdated={refreshDetail} />
 
               {selected.rejectionReason && (
                 <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -295,7 +322,7 @@ export default function AdminOrders() {
                       >
                         {next === 'ACCEPTED' ? (
                           <>
-                            <Truck className="h-4 w-4" /> Accept & reserve stock
+                            <Truck className="h-4 w-4" /> Accept request
                           </>
                         ) : (
                           titleCase(next)

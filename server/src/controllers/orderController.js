@@ -11,9 +11,15 @@ const { serializeOrder } = require('../utils/serializers');
 const { computeOrderTotals } = require('../services/pricingService');
 const { notifyOrder } = require('../services/notificationService');
 const { recordAudit } = require('../services/auditService');
-const { generateReference } = require('../utils/idGenerator');
+const { createReservedOrder } = require('../services/orderBookingService');
+const {
+  confirmBuyerOrder,
+  declineBuyerOrder,
+  updateSellerStatus,
+  statusLabel,
+} = require('../services/orderWorkflowService');
 const { parsePage } = require('../utils/numbers');
-const { ORDER_STATUS, ROLES, AUDIT_ACTION } = require('../utils/constants');
+const { ROLES, AUDIT_ACTION } = require('../utils/constants');
 const env = require('../config/env');
 
 /**
@@ -22,7 +28,7 @@ const env = require('../config/env');
  * recomputed here from the database — client totals are never trusted.
  */
 const createOrder = asyncHandler(async (req, res) => {
-  const { items: requestedItems, delivery, notes } = req.body;
+  const { items: requestedItems, delivery, notes, idempotencyKey } = req.body;
 
   // Collapse duplicate listing ids and validate against live, sellable stock.
   const resolved = [];
@@ -111,57 +117,46 @@ const createOrder = asyncHandler(async (req, res) => {
   const totalPaise =
     totals.materialSubtotalPaise + taxPaise + totals.transportationPaise + totals.otherFeesPaise;
 
-  const order = await ordersRepo.create({
-    orderNumber: generateReference('ORD'),
+  const { order, duplicate } = await createReservedOrder({
     buyerId: req.user.id,
+    idempotencyKey,
     delivery,
-    items: totals.items.map((it) => ({
-      listing: it.listing,
-      inventoryLot: it.inventoryLot,
-      materialName: it.materialName,
-      materialType: it.materialType,
-      qualityGrade: it.qualityGrade,
-      condition: it.condition,
-      weightKg: it.weightKg,
-      unitPricePaise: it.unitPricePaise,
-      subtotalPaise: it.subtotalPaise,
-      reservedWeightKg: 0,
-      fulfilledWeightKg: 0,
-    })),
+    notes,
+    items: resolved,
     materialSubtotalPaise: totals.materialSubtotalPaise,
     taxPercent: effectiveTaxPercent,
     taxPaise,
-    transportationPaise: totals.transportationPaise,
-    otherFeesPaise: totals.otherFeesPaise,
     totalPaise,
-    // Delivery cost is not computed from any real logistics source -> provisional.
-    quoteIsProvisional: true,
-    status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
-    statusHistory: [
-      {
-        status: ORDER_STATUS.PENDING_ADMIN_APPROVAL,
-        at: new Date(),
-        by: req.user.id,
-        note: 'Purchase request submitted',
-      },
-    ],
-    notes: notes || '',
   });
 
-  await notifyOrder(
-    req.user.id,
-    'Purchase request submitted',
-    `Your purchase request ${order.orderNumber} was submitted and is pending review.`,
-    order.id
+  if (!duplicate) {
+    await notifyOrder(
+      req.user.id,
+      'Purchase request submitted',
+      `Your purchase request ${order.orderNumber} was submitted and is pending review.`,
+      order.id
+    );
+    if (order.sellerId) {
+      await notifyOrder(
+        order.sellerId,
+        'New purchase request',
+        `A buyer has requested ${order.items.reduce((sum, item) => sum + item.weightKg, 0)} kg of your material. Inspection will be arranged before contact details are shared.`,
+        order.id
+      );
+    }
+    await recordAudit({
+      action: AUDIT_ACTION.ORDER_CREATE,
+      resourceType: 'Order',
+      resourceId: order.id,
+      req,
+    });
+  }
+
+  return created(
+    res,
+    { order: serializeOrder(order, { viewer: req.user }) },
+    'Purchase request submitted'
   );
-  await recordAudit({
-    action: AUDIT_ACTION.ORDER_CREATE,
-    resourceType: 'Order',
-    resourceId: order.id,
-    req,
-  });
-
-  return created(res, { order: serializeOrder(order) }, 'Purchase request submitted');
 });
 
 /** GET /orders/my */
@@ -173,20 +168,153 @@ const myOrders = asyncHandler(async (req, res) => {
     skip,
     take: limit,
   });
-  const items = rows.map(serializeOrder);
+  const items = rows.map((order) => serializeOrder(order, { viewer: req.user }));
   return paginated(res, items, { page, limit, total });
 });
 
-/** GET /orders/:id — buyer or admin only. */
+/** GET /orders/selling — orders where the current user is the seller. */
+const sellerOrders = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = parsePage(req.query);
+  const { rows, total } = await ordersRepo.list({
+    sellerId: req.user.id,
+    status: req.query.status,
+    skip,
+    take: limit,
+    populateBuyer: true,
+  });
+  const items = rows.map((order) => serializeOrder(order, { viewer: req.user }));
+  return paginated(res, items, { page, limit, total });
+});
+
+/** GET /orders/:id — buyer, seller or admin. */
 const getOrder = asyncHandler(async (req, res) => {
   const order = await ordersRepo.findDetail(req.params.id);
   if (!order) throw ApiError.notFound('Order not found');
 
   const isAdmin = req.user.role === ROLES.ADMIN;
-  const isOwner = String(order.buyerId) === String(req.user.id);
-  if (!isAdmin && !isOwner) throw ApiError.forbidden('You cannot view this order');
+  const isBuyer = String(order.buyerId) === String(req.user.id);
+  const isSeller = order.sellerId && String(order.sellerId) === String(req.user.id);
+  if (!isAdmin && !isBuyer && !isSeller) {
+    throw ApiError.forbidden('You cannot view this order');
+  }
 
-  return ok(res, { order: serializeOrder(order) });
+  return ok(res, {
+    order: serializeOrder(order, { viewer: req.user, isAdmin }),
+  });
 });
 
-module.exports = { createOrder, myOrders, getOrder };
+/** PATCH /orders/:id/confirm — buyer accepts the delivery charge. */
+const confirmOrder = asyncHandler(async (req, res) => {
+  const order = await ordersRepo.findById(req.params.id);
+  if (!order) throw ApiError.notFound('Order not found');
+  if (String(order.buyerId) !== String(req.user.id)) {
+    throw ApiError.forbidden('Only the buyer can confirm this order');
+  }
+
+  const updated = await confirmBuyerOrder(order, req.user.id, req.body.note);
+  await notifyOrder(
+    order.buyerId,
+    'Order confirmed',
+    `Your order ${order.orderNumber} is confirmed. The seller can now see your delivery details.`,
+    order.id
+  );
+  if (order.sellerId) {
+    await notifyOrder(
+      order.sellerId,
+      'Buyer confirmed the order',
+      `The buyer confirmed delivery charge for ${order.orderNumber}. Review the delivery details in your seller orders.`,
+      order.id
+    );
+  }
+  await recordAudit({
+    action: AUDIT_ACTION.ORDER_STATUS,
+    resourceType: 'Order',
+    resourceId: order.id,
+    before: { status: order.status },
+    after: { status: updated.status, addressReleased: true },
+    req,
+  });
+
+  return ok(
+    res,
+    { order: serializeOrder(updated, { viewer: req.user }) },
+    'Order confirmed'
+  );
+});
+
+/** PATCH /orders/:id/decline — buyer rejects the delivery charge. */
+const declineOrder = asyncHandler(async (req, res) => {
+  const order = await ordersRepo.findById(req.params.id);
+  if (!order) throw ApiError.notFound('Order not found');
+  if (String(order.buyerId) !== String(req.user.id)) {
+    throw ApiError.forbidden('Only the buyer can decline this order');
+  }
+
+  const updated = await declineBuyerOrder(order, req.user.id, req.body.reason);
+  await notifyOrder(
+    order.buyerId,
+    'Order cancelled',
+    `You declined the delivery charge for ${order.orderNumber}. The order has been cancelled.`,
+    order.id
+  );
+  if (order.sellerId) {
+    await notifyOrder(
+      order.sellerId,
+      'Order cancelled',
+      `The buyer declined the delivery charge for ${order.orderNumber}.`,
+      order.id
+    );
+  }
+  await recordAudit({
+    action: AUDIT_ACTION.ORDER_STATUS,
+    resourceType: 'Order',
+    resourceId: order.id,
+    before: { status: order.status },
+    after: { status: updated.status },
+    req,
+  });
+
+  return ok(
+    res,
+    { order: serializeOrder(updated, { viewer: req.user }) },
+    'Order cancelled'
+  );
+});
+
+/** PATCH /orders/:id/status — seller fulfilment after address release. */
+const updateSellerOrderStatus = asyncHandler(async (req, res) => {
+  const order = await ordersRepo.findById(req.params.id);
+  if (!order) throw ApiError.notFound('Order not found');
+  if (!order.sellerId || String(order.sellerId) !== String(req.user.id)) {
+    throw ApiError.forbidden('You cannot update this order');
+  }
+
+  const updated = await updateSellerStatus(
+    order,
+    req.user.id,
+    req.body.status,
+    req.body.note || ''
+  );
+  await notifyOrder(
+    order.buyerId,
+    `Order ${statusLabel(updated.status)}`,
+    `Your order ${order.orderNumber} is now ${statusLabel(updated.status)}.`,
+    order.id
+  );
+
+  return ok(
+    res,
+    { order: serializeOrder(updated, { viewer: req.user }) },
+    `Order moved to ${updated.status}`
+  );
+});
+
+module.exports = {
+  createOrder,
+  myOrders,
+  sellerOrders,
+  getOrder,
+  confirmOrder,
+  declineOrder,
+  updateSellerOrderStatus,
+};
